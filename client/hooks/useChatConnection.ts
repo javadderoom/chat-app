@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Message, ConnectionStatus, UserSettings } from '../types';
 
+// Database message format from API
+interface DbMessage {
+  id: string;
+  username: string;
+  content: string;
+  createdAt: string | Date;
+}
+
 // Demo messages for simulation mode
 const DEMO_RESPONSES = [
   "Roger that. Signal is clear.",
@@ -57,15 +65,44 @@ export const useChatConnection = (settings: UserSettings) => {
       forceNew: true // Ensure a fresh connection instance
     });
 
-    newSocket.on('connect', () => {
+    newSocket.on('connect', async () => {
+      console.log('Socket.io connected!', { socketId: newSocket.id, serverUrl: settings.serverUrl });
       setStatus(ConnectionStatus.CONNECTED);
+      
+      // Load previous messages from database first
+      try {
+        const response = await fetch(`${settings.serverUrl}/api/messages`);
+        if (response.ok) {
+          const dbMessages: DbMessage[] = await response.json();
+          // Convert database messages to frontend format
+          const loadedMessages: Message[] = dbMessages
+            .reverse() // Reverse to show oldest first (API returns newest first)
+            .map((dbMsg) => ({
+              id: dbMsg.id,
+              text: dbMsg.content,
+              sender: dbMsg.username,
+              timestamp: new Date(dbMsg.createdAt).getTime(),
+              isMe: dbMsg.username === settings.username,
+              isSystem: false,
+            }));
+          
+          // Set loaded messages (this will replace any existing messages)
+          setMessages(loadedMessages);
+        }
+      } catch (error) {
+        console.error('Error loading messages:', error);
+        // Continue without loaded messages
+      }
+      
+      // Show connection message after loading history
       addMessage(`Connected to ${settings.serverUrl}`, "System", false, true);
       // Join a default room or announce presence
       newSocket.emit('join', settings.username);
     });
 
     newSocket.on('connect_error', (err) => {
-      console.warn('Socket connection error:', err.message);
+      console.error('Socket connection error:', err.message);
+      console.error('Connection details:', { serverUrl: settings.serverUrl, error: err });
       // Update status to ERROR to inform UI, but socket will keep retrying due to reconnection: true
       setStatus(ConnectionStatus.ERROR);
     });
@@ -76,7 +113,40 @@ export const useChatConnection = (settings: UserSettings) => {
     });
 
     newSocket.on('message', (data: { user: string, text: string }) => {
-      addMessage(data.text, data.user, false);
+      const isFromMe = data.user === settingsRef.current.username;
+      
+      // Filter out our own messages - we already show them optimistically
+      if (isFromMe) {
+        return;
+      }
+      
+      const currentTime = Date.now();
+      
+      setMessages(prev => {
+        // Check for duplicates from other users within a reasonable time window
+        const recentTime = currentTime - 10000; // 10 second window
+        const duplicate = prev.find(
+          msg => msg.text === data.text && 
+                 msg.sender === data.user && 
+                 msg.timestamp > recentTime &&
+                 !msg.isSystem
+        );
+        
+        if (duplicate) {
+          return prev;
+        }
+        
+        // Add new message from other users
+        const newMessage: Message = {
+          id: Math.random().toString(36).substring(7),
+          text: data.text,
+          sender: data.user,
+          timestamp: currentTime,
+          isMe: false, // Always false since we filtered out our own messages
+          isSystem: false,
+        };
+        return [...prev, newMessage];
+      });
     });
 
     setSocket(newSocket);
@@ -88,10 +158,26 @@ export const useChatConnection = (settings: UserSettings) => {
   }, [settings.serverUrl, settings.isDemoMode, settings.username, addMessage]);
 
   const sendMessage = useCallback((text: string) => {
-    if (!text.trim()) return;
+    // Validate and sanitize input
+    if (!text || typeof text !== 'string') {
+      console.warn('Invalid message text:', text);
+      return;
+    }
+    
+    const trimmedText = text.trim();
+    if (!trimmedText) {
+      return;
+    }
+
+    // Ensure username is valid
+    const username = settingsRef.current.username?.trim() || 'Anonymous';
+    if (!username) {
+      console.warn('Invalid username, cannot send message');
+      return;
+    }
 
     // Add local message immediately for optimistic UI
-    addMessage(text, settingsRef.current.username, true);
+    addMessage(trimmedText, username, true);
 
     if (settingsRef.current.isDemoMode) {
       // Simulate reply in demo mode
@@ -100,13 +186,33 @@ export const useChatConnection = (settings: UserSettings) => {
         addMessage(randomResponse, "Operator", false);
       }, 1000 + Math.random() * 2000);
     } else if (socket && socket.connected) {
-      // Send to server
-      socket.emit('message', { user: settingsRef.current.username, text });
+      // Send to server - ensure both fields are strings and non-empty
+      const messageData = { 
+        user: String(username), 
+        text: String(trimmedText)
+      };
+      
+      // Double-check before sending
+      if (!messageData.text || !messageData.user) {
+        console.error('Invalid message data, not sending:', messageData);
+        addMessage("Error: Invalid message format", "System", false, true);
+        return;
+      }
+      
+      console.log('Sending message via Socket.io:', messageData);
+      console.log('Socket connected:', socket.connected);
+      console.log('Socket ID:', socket.id);
+      socket.emit('message', messageData);
     } else {
       // Fallback if disconnected
+      console.warn('Cannot send message - socket not connected', {
+        socketExists: !!socket,
+        socketConnected: socket?.connected,
+        status
+      });
       addMessage("Message not sent: Disconnected", "System", false, true);
     }
-  }, [socket, addMessage]);
+  }, [socket, addMessage, status]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);

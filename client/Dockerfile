@@ -8,7 +8,7 @@ RUN npm run build
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
+COPY --from=build /app/dist /usr/share/nginx/html
 # If using React Router, you'll need a custom nginx.conf here
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

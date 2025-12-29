@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copy package files first (to speed up future builds)
 COPY package*.json ./
-RUN npm install --production
+RUN npm install
 
 # Copy the rest of your app code
 COPY . .
@@ -15,4 +15,4 @@ COPY . .
 EXPOSE 3000
 
 # Start the app
-CMD ["node", "index.js"]
+CMD ["npm", "start"]
