@@ -1,0 +1,16 @@
+services:
+  backend:
+    build: ./server
+    container_name: chat-backend
+    restart: always
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build: ./client
+    container_name: chat-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

@@ -1,0 +1,34 @@
+# Dependency directories
+node_modules
+jspm_packages
+.npm
+
+# Build outputs
+.nuxt
+.output
+dist
+build
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+.vercel
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Git
+.git
+.gitignore

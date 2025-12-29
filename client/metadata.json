@@ -1,0 +1,5 @@
+{
+  "name": "Blackout Chat",
+  "description": "A resilient, offline-capable chat application for LAN and Intranet environments. Features direct socket connections, message persistence, and guides for remote access without global internet.",
+  "requestFramePermissions": []
+}
