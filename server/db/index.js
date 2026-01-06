@@ -9,6 +9,9 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME || 'chat_app',
   ssl: false,
+  max: 10, 
+  idleTimeoutMillis: 30000, 
+  connectionTimeoutMillis: 2000,
 });
 
 const db = drizzle(pool);

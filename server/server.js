@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const cors = require('cors');
-const { db } = require('./db/index');
+const { db, pool } = require('./db/index');
 const { messages } = require('./db/schema');
 const { desc } = require('drizzle-orm');
 
@@ -159,7 +159,7 @@ app.get('/api/messages', async (req, res) => {
 // Test database connection on startup
 async function testDatabaseConnection() {
   try {
-    const { pool } = require('./db/index');
+   
     const result = await pool.query('SELECT NOW()');
     console.log('✓ Database connection successful');
     console.log('  Database time:', result.rows[0].now);
@@ -174,3 +174,8 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(`Blackout Chat Server running on port ${PORT}`);
   await testDatabaseConnection();
 });
+process.on('SIGNIT', async () => {
+  console.log("Shutting down gracefully...");
+  await pool.end(); // close all DB connections 
+  process.exit(0);
+})
