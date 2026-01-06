@@ -1,8 +1,8 @@
 # Use a tiny version of Node.js
 FROM node:20-alpine
 
-# Install wait4ports, curl, and PostgreSQL client for database operations and health checks
-RUN apk add --no-cache wait4ports curl postgresql-client
+# Install wait4ports and curl for container orchestration and health checks
+RUN apk update && apk add --no-cache wait4ports curl
 
 # Set the working directory inside the container
 WORKDIR /app
