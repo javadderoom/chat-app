@@ -114,27 +114,46 @@ io.on('connection', (socket) => {
         username: String(finalUsername),
         content: String(finalContent),
       };
-      
+
       console.log('Insert values:', {
         username: insertValues.username,
         contentLength: insertValues.content.length,
         usernameIsNull: insertValues.username === null,
         contentIsNull: insertValues.content === null
       });
-      
+
       const [savedMessage] = await db.insert(messages).values(insertValues).returning();
-      
+
       console.log('Message saved to database:', {
         id: savedMessage.id,
         username: savedMessage.username,
         content: savedMessage.content.substring(0, 50) + (savedMessage.content.length > 50 ? '...' : '')
       });
-      
+
       // Broadcast message to everyone (including sender for confirmation)
       io.emit('message', data);
     } catch (error) {
-      console.error('Error saving message to database:', error);
-      console.error('Message data:', { username, content: content.substring(0, 50) });
+      console.error('Error saving message to database:', error.message);
+      console.error('Message data:', { username: finalUsername, content: finalContent.substring(0, 50) });
+
+      // Check if it's a connection error and try to reconnect
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.message.includes('connection')) {
+        console.log('Database connection lost, attempting to reconnect...');
+        try {
+          // Test connection and retry once
+          await pool.query('SELECT 1');
+          console.log('Database reconnected successfully');
+
+          // Retry the insert
+          const [savedMessage] = await db.insert(messages).values(insertValues).returning();
+          console.log('Message saved after reconnection:', savedMessage.id);
+          io.emit('message', data);
+          return;
+        } catch (reconnectError) {
+          console.error('Failed to reconnect to database:', reconnectError.message);
+        }
+      }
+
       // Still broadcast even if database save fails
       io.emit('message', data);
     }
@@ -151,31 +170,79 @@ app.get('/api/messages', async (req, res) => {
     const recentMessages = await db.select().from(messages).orderBy(desc(messages.createdAt)).limit(50);
     res.json(recentMessages);
   } catch (error) {
-    console.error('Error fetching messages:', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
+    console.error('Error fetching messages:', error.message);
+
+    // Check if it's a connection error
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.message.includes('connection')) {
+      console.log('Database connection issue in API endpoint');
+      res.status(503).json({
+        error: 'Database temporarily unavailable',
+        retryAfter: 30
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to fetch messages' });
+    }
   }
 });
 
-// Test database connection on startup
-async function testDatabaseConnection() {
-  try {
-   
-    const result = await pool.query('SELECT NOW()');
-    console.log('✓ Database connection successful');
-    console.log('  Database time:', result.rows[0].now);
-  } catch (error) {
-    console.error('✗ Database connection failed:', error.message);
-    console.error('  Make sure PostgreSQL is running and accessible');
+// Test database connection on startup with retries
+async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Testing database connection (attempt ${attempt}/${maxRetries})...`);
+      const result = await pool.query('SELECT NOW()');
+      console.log('✓ Database connection successful');
+      console.log('  Database time:', result.rows[0].now);
+
+      // Test that tables exist by trying to count messages
+      try {
+        const countResult = await pool.query('SELECT COUNT(*) FROM messages');
+        console.log('✓ Database tables are accessible');
+        console.log('  Current message count:', countResult.rows[0].count);
+      } catch (tableError) {
+        console.error('✗ Database tables not found:', tableError.message);
+        console.error('  Please ensure database schema is initialized');
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`✗ Database connection failed (attempt ${attempt}/${maxRetries}):`, error.message);
+
+      if (attempt === maxRetries) {
+        console.error('  Max retries reached. Please check:');
+        console.error('  - PostgreSQL container is running');
+        console.error('  - Database credentials are correct');
+        console.error('  - Network connectivity between containers');
+        return false;
+      }
+
+      console.log(`  Retrying in ${retryDelay / 1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+    }
   }
+  return false;
 }
 
 const PORT = 3000;
 server.listen(PORT, '0.0.0.0', async () => {
   console.log(`Blackout Chat Server running on port ${PORT}`);
-  await testDatabaseConnection();
+
+  const dbConnected = await testDatabaseConnection();
+  if (!dbConnected) {
+    console.error('Failed to establish database connection. Exiting...');
+    process.exit(1);
+  }
 });
-process.on('SIGNIT', async () => {
+
+process.on('SIGINT', async () => {
   console.log("Shutting down gracefully...");
-  await pool.end(); // close all DB connections 
+  await pool.end(); // close all DB connections
   process.exit(0);
-})
+});
+
+process.on('SIGTERM', async () => {
+  console.log("Shutting down gracefully...");
+  await pool.end(); // close all DB connections
+  process.exit(0);
+});
