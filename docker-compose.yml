@@ -30,12 +30,13 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: postgres
-      # DB_PASSWORD: postgres  # Temporarily commented out for trust auth
+      DB_PASSWORD: postgres
       DB_NAME: chat_app
+      POSTGRES_PASSWORD: postgres
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["sh", "-c", "sleep 10 && echo 'Testing database connection...' && node -e \"const { Pool } = require('pg'); const pool = new Pool({host:'postgres',port:5432,user:'postgres',database:'chat_app'}); pool.query('SELECT version()').then(() => {console.log('Database connection successful.'); return pool.query(\\\"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'messages'\\\")}).then(result => {if(result.rows.length > 0){console.log('Schema already exists, skipping db:push'); process.exit(0);}else{console.log('Schema not found, running db:push...');}}).catch(err => {console.error('Connection failed:', err.message); process.exit(1);}).finally(() => pool.end())\" && npm run db:push"]
+    command: ["sh", "-c", "sleep 10 && echo 'Resetting postgres password...' && PGPASSWORD=$POSTGRES_PASSWORD psql -h postgres -U postgres -d postgres -c \"ALTER USER postgres PASSWORD '$POSTGRES_PASSWORD';\" 2>/dev/null || echo 'Password reset failed or already correct' && echo 'Testing database connection...' && node -e \"const { Pool } = require('pg'); const pool = new Pool({host:'postgres',port:5432,user:'postgres',password:'postgres',database:'chat_app'}); pool.query('SELECT version()').then(() => {console.log('Database connection successful.'); return pool.query(\\\"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'messages'\\\")}).then(result => {if(result.rows.length > 0){console.log('Schema already exists, skipping db:push'); process.exit(0);}else{console.log('Schema not found, running db:push...');}}).catch(err => {console.error('Connection failed:', err.message); process.exit(1);}).finally(() => pool.end())\" && npm run db:push"]
     profiles:
       - init
 
@@ -51,7 +52,7 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: postgres
-      # DB_PASSWORD: postgres  # Temporarily commented out for trust auth
+      DB_PASSWORD: postgres
       DB_NAME: chat_app
     depends_on:
       postgres:
