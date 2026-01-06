@@ -1,82 +1,82 @@
-# Chat App Deployment Script for Windows
-# Run this with: .\deploy.ps1
+#!/bin/bash
 
-param(
-    [switch]$Force
-)
+# Chat App Deployment Script for Linux
+# Run this with: ./deploy.sh
 
-Write-Host "🚀 Starting Chat App deployment..." -ForegroundColor Green
+set -e
+
+echo "🚀 Starting Chat App deployment..."
 
 # Function to check if a service is healthy
-function Test-ServiceHealth {
-    param([string]$ServiceName, [int]$MaxAttempts = 30)
+check_service() {
+    local service=$1
+    local max_attempts=30
+    local attempt=1
 
-    Write-Host "⏳ Waiting for $ServiceName to be ready..." -ForegroundColor Yellow
+    echo "⏳ Waiting for $service to be ready..."
 
-    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        $status = docker-compose ps $ServiceName 2>$null
-        if ($status -and ($status -match "healthy|running")) {
-            Write-Host "✅ $ServiceName is ready!" -ForegroundColor Green
-            return $true
-        }
+    while [ $attempt -le $max_attempts ]; do
+        if docker-compose ps $service | grep -q "healthy\|running"; then
+            echo "✅ $service is ready!"
+            return 0
+        fi
 
-        Write-Host "   Attempt $attempt/$MaxAttempts`: $ServiceName not ready yet..." -ForegroundColor Gray
-        Start-Sleep -Seconds 10
-    }
+        echo "   Attempt $attempt/$max_attempts: $service not ready yet..."
+        sleep 10
+        attempt=$((attempt + 1))
+    done
 
-    Write-Host "❌ $ServiceName failed to start properly" -ForegroundColor Red
-    return $false
+    echo "❌ $service failed to start properly"
+    return 1
 }
 
 # Stop any existing containers
-Write-Host "🛑 Stopping existing containers..." -ForegroundColor Yellow
+echo "🛑 Stopping existing containers..."
 docker-compose down
 
 # Start PostgreSQL first
-Write-Host "🐘 Starting PostgreSQL..." -ForegroundColor Yellow
+echo "🐘 Starting PostgreSQL..."
 docker-compose up -d postgres
 
 # Wait for PostgreSQL to be healthy
-if (!(Test-ServiceHealth -ServiceName "postgres")) {
-    Write-Host "❌ PostgreSQL failed to start. Check logs:" -ForegroundColor Red
+if ! check_service postgres; then
+    echo "❌ PostgreSQL failed to start. Check logs:"
     docker-compose logs postgres
     exit 1
-}
+fi
 
 # Run database initialization
-Write-Host "🗄️  Initializing database schema..." -ForegroundColor Yellow
-$initResult = docker-compose --profile init run --rm db-init 2>&1
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ Database schema initialized successfully" -ForegroundColor Green
-} else {
-    Write-Host "❌ Database initialization failed" -ForegroundColor Red
-    Write-Host $initResult -ForegroundColor Red
+echo "🗄️  Initializing database schema..."
+if docker-compose --profile init run --rm db-init; then
+    echo "✅ Database schema initialized successfully"
+else
+    echo "❌ Database initialization failed"
     docker-compose logs db-init
     exit 1
-}
+fi
 
 # Start the backend
-Write-Host "⚙️  Starting backend service..." -ForegroundColor Yellow
+echo "⚙️  Starting backend service..."
 docker-compose up -d backend
 
 # Wait for backend to be healthy
-if (!(Test-ServiceHealth -ServiceName "backend")) {
-    Write-Host "❌ Backend failed to start. Check logs:" -ForegroundColor Red
+if ! check_service backend; then
+    echo "❌ Backend failed to start. Check logs:"
     docker-compose logs backend
     exit 1
-}
+fi
 
 # Start the frontend
-Write-Host "🌐 Starting frontend service..." -ForegroundColor Yellow
+echo "🌐 Starting frontend service..."
 docker-compose up -d frontend
 
-Write-Host "" -ForegroundColor Green
-Write-Host "🎉 Chat App deployment completed successfully!" -ForegroundColor Green
-Write-Host "" -ForegroundColor Green
-Write-Host "Services:" -ForegroundColor Cyan
-Write-Host "  • Frontend: http://localhost" -ForegroundColor White
-Write-Host "  • Backend API: http://localhost:3000" -ForegroundColor White
-Write-Host "  • Database: localhost:5432" -ForegroundColor White
-Write-Host "" -ForegroundColor Green
-Write-Host "To view logs: docker-compose logs -f [service-name]" -ForegroundColor Yellow
-Write-Host "To stop: docker-compose down" -ForegroundColor Yellow
+echo ""
+echo "🎉 Chat App deployment completed successfully!"
+echo ""
+echo "Services:"
+echo "  • Frontend: http://localhost"
+echo "  • Backend API: http://localhost:3000"
+echo "  • Database: localhost:5432"
+echo ""
+echo "To view logs: docker-compose logs -f [service-name]"
+echo "To stop: docker-compose down"
