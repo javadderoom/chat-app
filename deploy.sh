@@ -51,7 +51,11 @@ if docker-compose --profile init run --rm db-init; then
     echo "✅ Database schema initialized successfully"
 else
     echo "❌ Database initialization failed"
+    echo "📋 Checking db-init logs:"
     docker-compose logs db-init
+    echo ""
+    echo "🔍 Checking PostgreSQL logs:"
+    docker-compose logs postgres
     exit 1
 fi
 

@@ -14,10 +14,10 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./server/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d chat_app"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chat_app && psql -U postgres -d chat_app -c 'SELECT 1;'"]
       interval: 30s
-      timeout: 10s
-      retries: 3
+      timeout: 15s
+      retries: 5
       start_period: 30s
 
   db-init:
@@ -35,7 +35,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["npm", "run", "db:push"]
+    command: ["sh", "-c", "sleep 10 && echo 'Testing database connection...' && psql -U postgres -d chat_app -c 'SELECT version();' && echo 'Database connection successful, running db:push...' && npm run db:push"]
     profiles:
       - init
 
