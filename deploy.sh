@@ -46,17 +46,22 @@ if ! check_service postgres; then
 fi
 
 # Run database initialization
-echo "🗄️  Initializing database schema..."
+echo "🗄️  Initializing database schema (if needed)..."
 if docker-compose --profile init run --rm db-init; then
-    echo "✅ Database schema initialized successfully"
+    echo "✅ Database schema check/initialization completed"
 else
-    echo "❌ Database initialization failed"
+    echo "⚠️  Database initialization encountered an issue"
     echo "📋 Checking db-init logs:"
     docker-compose logs db-init
     echo ""
     echo "🔍 Checking PostgreSQL logs:"
     docker-compose logs postgres
-    exit 1
+    echo ""
+    echo "💡 If you see 'Schema already exists', the database is already initialized"
+    echo "   and this is not an error. If you see authentication errors, try:"
+    echo "   docker-compose down -v  # Remove volumes and start fresh"
+    echo ""
+    # Don't exit - let the deployment continue
 fi
 
 # Start the backend

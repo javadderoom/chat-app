@@ -35,7 +35,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["sh", "-c", "sleep 10 && echo 'Testing database connection...' && psql -U postgres -d chat_app -c 'SELECT version();' && echo 'Database connection successful, running db:push...' && npm run db:push"]
+    command: ["sh", "-c", "sleep 10 && echo 'Testing database connection...' && psql -U postgres -d chat_app -c 'SELECT version();' && echo 'Database connection successful.' && echo 'Checking if schema exists...' && psql -U postgres -d chat_app -c 'SELECT table_name FROM information_schema.tables WHERE table_schema = '\''public'\'' AND table_name = '\''messages'\'';' | grep -q messages && echo 'Schema already exists, skipping db:push' || (echo 'Schema not found, running db:push...' && npm run db:push)"]
     profiles:
       - init
 
