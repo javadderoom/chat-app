@@ -1,79 +1,68 @@
 services:
+  # --- Database (Internal Only) ---
   postgres:
     image: postgres:16-alpine
     container_name: chat-postgres
-    restart: unless-stopped
+    restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: chat_app
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
-    ports:
-      - "5432:5432"
+    # EXPOSE means: "Visible to other containers, but NOT to the internet"
+    expose:
+      - "5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./server/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # The fix we confirmed works (Host Bind Mount)
+      - ./pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d chat_app && psql -U postgres -d chat_app -c 'SELECT 1;'"]
-      interval: 30s
-      timeout: 15s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
       retries: 5
-      start_period: 30s
 
-  db-init:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    container_name: chat-db-init
-    restart: "no"
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: chat_app
-      POSTGRES_PASSWORD: postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: ["sh", "-c", "sleep 10 && echo 'Resetting postgres password...' && PGPASSWORD=$POSTGRES_PASSWORD psql -h postgres -U postgres -d postgres -c \"ALTER USER postgres PASSWORD '$POSTGRES_PASSWORD';\" 2>/dev/null || echo 'Password reset failed or already correct' && echo 'Testing database connection...' && node -e \"const { Pool } = require('pg'); const pool = new Pool({host:'postgres',port:5432,user:'postgres',password:'postgres',database:'chat_app'}); pool.query('SELECT version()').then(() => {console.log('Database connection successful.'); return pool.query(\\\"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'messages'\\\")}).then(result => {if(result.rows.length > 0){console.log('Schema already exists, skipping db:push'); process.exit(0);}else{console.log('Schema not found, running db:push...');}}).catch(err => {console.error('Connection failed:', err.message); process.exit(1);}).finally(() => pool.end())\" && npm run db:push"]
-    profiles:
-      - init
-
+  # --- Backend API (Internal Only) ---
   backend:
     build:
       context: ./server
       dockerfile: Dockerfile
     container_name: chat-backend
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
+    restart: always
+    expose:
+      - "3000"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_NAME: chat_app
+      # Allow Nginx to proxy requests
+      CORS_ORIGIN: "*"
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000", "||", "exit", "1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
+  # --- Frontend React (Internal Only) ---
   frontend:
     build:
       context: ./client
       dockerfile: Dockerfile
     container_name: chat-frontend
     restart: always
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       - backend
 
-volumes:
-  postgres_data:
+  # --- NGINX (The Public Gatekeeper) ---
+  nginx:
+    image: nginx:alpine
+    container_name: chat-nginx
+    restart: always
+    ports:
+      - "80:80"  # <--- The ONLY public port
+    volumes:
+      # Mount the config file you created
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - frontend
+      - backend

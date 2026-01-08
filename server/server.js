@@ -114,22 +114,22 @@ io.on('connection', (socket) => {
         username: String(finalUsername),
         content: String(finalContent),
       };
-
+      
       console.log('Insert values:', {
         username: insertValues.username,
         contentLength: insertValues.content.length,
         usernameIsNull: insertValues.username === null,
         contentIsNull: insertValues.content === null
       });
-
+      
       const [savedMessage] = await db.insert(messages).values(insertValues).returning();
-
+      
       console.log('Message saved to database:', {
         id: savedMessage.id,
         username: savedMessage.username,
         content: savedMessage.content.substring(0, 50) + (savedMessage.content.length > 50 ? '...' : '')
       });
-
+      
       // Broadcast message to everyone (including sender for confirmation)
       io.emit('message', data);
     } catch (error) {
@@ -180,7 +180,7 @@ app.get('/api/messages', async (req, res) => {
         retryAfter: 30
       });
     } else {
-      res.status(500).json({ error: 'Failed to fetch messages' });
+    res.status(500).json({ error: 'Failed to fetch messages' });
     }
   }
 });
@@ -188,11 +188,11 @@ app.get('/api/messages', async (req, res) => {
 // Test database connection on startup with retries
 async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
+  try {
       console.log(`Testing database connection (attempt ${attempt}/${maxRetries})...`);
-      const result = await pool.query('SELECT NOW()');
-      console.log('✓ Database connection successful');
-      console.log('  Database time:', result.rows[0].now);
+    const result = await pool.query('SELECT NOW()');
+    console.log('✓ Database connection successful');
+    console.log('  Database time:', result.rows[0].now);
 
       // Test that tables exist by trying to count messages
       try {
@@ -206,7 +206,7 @@ async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
       }
 
       return true;
-    } catch (error) {
+  } catch (error) {
       console.error(`✗ Database connection failed (attempt ${attempt}/${maxRetries}):`, error.message);
 
       if (attempt === maxRetries) {
@@ -219,7 +219,7 @@ async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
 
       console.log(`  Retrying in ${retryDelay / 1000} seconds...`);
       await new Promise(resolve => setTimeout(resolve, retryDelay));
-    }
+  }
   }
   return false;
 }
@@ -243,6 +243,6 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
   console.log("Shutting down gracefully...");
-  await pool.end(); // close all DB connections
+  await pool.end(); // close all DB connections 
   process.exit(0);
 });
