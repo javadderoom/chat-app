@@ -25,7 +25,7 @@ export const useChatConnection = (settings: UserSettings) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   const [socket, setSocket] = useState<Socket | null>(null);
-  
+
   // Use a ref for settings to access latest values in effects without re-triggering connection
   const settingsRef = useRef(settings);
   useEffect(() => {
@@ -53,7 +53,7 @@ export const useChatConnection = (settings: UserSettings) => {
     }
 
     setStatus(ConnectionStatus.CONNECTING);
-    
+
     // Attempt connection
     const newSocket = io(settings.serverUrl, {
       reconnection: true,
@@ -68,7 +68,7 @@ export const useChatConnection = (settings: UserSettings) => {
     newSocket.on('connect', async () => {
       console.log('Socket.io connected!', { socketId: newSocket.id, serverUrl: settings.serverUrl });
       setStatus(ConnectionStatus.CONNECTED);
-      
+
       // Load previous messages from database first
       try {
         const response = await fetch(`${settings.serverUrl}/api/messages`);
@@ -85,7 +85,7 @@ export const useChatConnection = (settings: UserSettings) => {
               isMe: dbMsg.username === settings.username,
               isSystem: false,
             }));
-          
+
           // Set loaded messages (this will replace any existing messages)
           setMessages(loadedMessages);
         }
@@ -93,7 +93,7 @@ export const useChatConnection = (settings: UserSettings) => {
         console.error('Error loading messages:', error);
         // Continue without loaded messages
       }
-      
+
       // Show connection message after loading history
       addMessage(`Connected to ${settings.serverUrl}`, "System", false, true);
       // Join a default room or announce presence
@@ -114,28 +114,28 @@ export const useChatConnection = (settings: UserSettings) => {
 
     newSocket.on('message', (data: { user: string, text: string }) => {
       const isFromMe = data.user === settingsRef.current.username;
-      
+
       // Filter out our own messages - we already show them optimistically
       if (isFromMe) {
         return;
       }
-      
+
       const currentTime = Date.now();
-      
+
       setMessages(prev => {
         // Check for duplicates from other users within a reasonable time window
         const recentTime = currentTime - 10000; // 10 second window
         const duplicate = prev.find(
-          msg => msg.text === data.text && 
-                 msg.sender === data.user && 
-                 msg.timestamp > recentTime &&
-                 !msg.isSystem
+          msg => msg.text === data.text &&
+            msg.sender === data.user &&
+            msg.timestamp > recentTime &&
+            !msg.isSystem
         );
-        
+
         if (duplicate) {
           return prev;
         }
-        
+
         // Add new message from other users
         const newMessage: Message = {
           id: Math.random().toString(36).substring(7),
@@ -163,7 +163,7 @@ export const useChatConnection = (settings: UserSettings) => {
       console.warn('Invalid message text:', text);
       return;
     }
-    
+
     const trimmedText = text.trim();
     if (!trimmedText) {
       return;
@@ -187,18 +187,18 @@ export const useChatConnection = (settings: UserSettings) => {
       }, 1000 + Math.random() * 2000);
     } else if (socket && socket.connected) {
       // Send to server - ensure both fields are strings and non-empty
-      const messageData = { 
-        user: String(username), 
+      const messageData = {
+        user: String(username),
         text: String(trimmedText)
       };
-      
+
       // Double-check before sending
       if (!messageData.text || !messageData.user) {
         console.error('Invalid message data, not sending:', messageData);
         addMessage("Error: Invalid message format", "System", false, true);
         return;
       }
-      
+
       console.log('Sending message via Socket.io:', messageData);
       console.log('Socket connected:', socket.connected);
       console.log('Socket ID:', socket.id);
@@ -218,10 +218,64 @@ export const useChatConnection = (settings: UserSettings) => {
     setMessages([]);
   }, []);
 
+  // Send media message (image, video, audio)
+  const sendMediaMessage = useCallback((uploadData: {
+    messageType: 'image' | 'video' | 'audio';
+    mediaUrl: string;
+    mediaType: string;
+    fileName: string;
+    fileSize: number;
+    mediaDuration?: number;
+  }) => {
+    const username = settingsRef.current.username?.trim() || 'Anonymous';
+
+    // Add local message immediately for optimistic UI
+    const localMessage: Message = {
+      id: Math.random().toString(36).substring(7),
+      text: `[${uploadData.messageType.toUpperCase()}] ${uploadData.fileName}`,
+      sender: username,
+      timestamp: Date.now(),
+      isMe: true,
+      isSystem: false,
+      messageType: uploadData.messageType,
+      mediaUrl: uploadData.mediaUrl,
+      mediaType: uploadData.mediaType,
+      fileName: uploadData.fileName,
+      fileSize: uploadData.fileSize,
+      mediaDuration: uploadData.mediaDuration,
+    };
+    setMessages(prev => [...prev, localMessage]);
+
+    if (settingsRef.current.isDemoMode) {
+      // Demo mode - just show the message
+      return;
+    }
+
+    if (socket && socket.connected) {
+      const messageData = {
+        user: username,
+        username: username,
+        messageType: uploadData.messageType,
+        mediaUrl: uploadData.mediaUrl,
+        mediaType: uploadData.mediaType,
+        fileName: uploadData.fileName,
+        fileSize: uploadData.fileSize,
+        mediaDuration: uploadData.mediaDuration,
+        text: `[${uploadData.messageType.toUpperCase()}] ${uploadData.fileName}`,
+      };
+
+      console.log('Sending media message via Socket.io:', messageData);
+      socket.emit('message', messageData);
+    } else {
+      addMessage("Media not sent: Disconnected", "System", false, true);
+    }
+  }, [socket, addMessage]);
+
   return {
     messages,
     status,
     sendMessage,
+    sendMediaMessage,
     clearMessages
   };
 };

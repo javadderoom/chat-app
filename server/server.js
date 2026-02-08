@@ -1,14 +1,22 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require("socket.io");
 const cors = require('cors');
 const { db, pool } = require('./db/index');
 const { messages } = require('./db/schema');
 const { desc } = require('drizzle-orm');
+const uploadRoutes = require('./routes/upload');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Upload routes
+app.use('/api/upload', uploadRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -31,24 +39,24 @@ io.on('connection', (socket) => {
       content: typeof data?.content,
       message: typeof data?.message
     });
-    
+
     // Validate data object exists
     if (!data || typeof data !== 'object') {
       console.error('Invalid message data received:', data);
       return;
     }
-    
+
     // Extract and validate username - ensure it's always a non-empty string
     let username = 'Anonymous';
     if (data.user && typeof data.user === 'string') username = data.user.trim();
     else if (data.username && typeof data.username === 'string') username = data.username.trim();
-    
+
     if (!username) {
       console.warn('Received message with empty username, using Anonymous');
       username = 'Anonymous';
     }
-    
-    // Extract and validate content - ensure it's always a non-empty string
+
+    // Extract and validate content - can be empty for media messages
     let content = '';
     if (data.text && typeof data.text === 'string') {
       content = data.text.trim();
@@ -57,103 +65,74 @@ io.on('connection', (socket) => {
     } else if (data.message && typeof data.message === 'string') {
       content = data.message.trim();
     }
-    
-    // Ensure content is a non-empty string
-    if (!content || content.length === 0) {
-      console.warn('Received empty or invalid message, skipping save. Content:', content);
+
+    // Check if this is a media message
+    const isMediaMessage = data.messageType && data.messageType !== 'text' && data.mediaUrl;
+
+    // Require either content or media
+    if ((!content || content.length === 0) && !isMediaMessage) {
+      console.warn('Received message with no content and no media, skipping save.');
       console.warn('Full data object:', JSON.stringify(data));
       return;
     }
 
-    // Final validation before database insert - ensure both are non-null strings
+    // Final validation before database insert
     const finalUsername = String(username || 'Anonymous').trim();
-    const finalContent = String(content).trim();
-    
-    if (!finalContent || finalContent.length === 0) {
-      console.error('Content validation failed before insert. Original content:', content);
-      console.error('Data received:', JSON.stringify(data));
+    const finalContent = content ? String(content).trim() : null;
+
+    // For text messages, require content; for media messages, content is optional
+    if (!isMediaMessage && (!finalContent || finalContent.length === 0)) {
+      console.error('Text message validation failed - no content. Data:', JSON.stringify(data));
       return;
     }
-    
+
     if (!finalUsername || finalUsername.length === 0) {
       console.error('Username validation failed before insert. Original username:', username);
       return;
     }
 
-    // Explicit null/undefined checks
-    if (finalContent === null || finalContent === undefined) {
-      console.error('CRITICAL: Content is null/undefined after validation!', {
-        originalContent: content,
-        finalContent,
-        data: JSON.stringify(data)
-      });
-      return;
-    }
-    
-    if (finalUsername === null || finalUsername === undefined) {
-      console.error('CRITICAL: Username is null/undefined after validation!', {
-        originalUsername: username,
-        finalUsername
-      });
-      return;
-    }
-
     console.log('Preparing to save message:', {
       username: finalUsername,
-      usernameType: typeof finalUsername,
-      contentLength: finalContent.length,
-      contentType: typeof finalContent,
-      contentPreview: finalContent.substring(0, 50),
-      isContentNull: finalContent === null,
-      isContentUndefined: finalContent === undefined
+      messageType: data.messageType || 'text',
+      hasContent: !!finalContent,
+      hasMedia: isMediaMessage,
     });
 
     try {
-      // Save message to database - explicitly ensure values are strings
+      // Save message to database with multimedia support
       const insertValues = {
         username: String(finalUsername),
-        content: String(finalContent),
+        messageType: data.messageType || 'text',
+        content: finalContent || null,
+        mediaUrl: data.mediaUrl || null,
+        mediaType: data.mediaType || null,
+        mediaDuration: data.mediaDuration || null,
+        mediaThumbnail: data.mediaThumbnail || null,
+        fileName: data.fileName || null,
+        fileSize: data.fileSize || null,
       };
-      
+
       console.log('Insert values:', {
         username: insertValues.username,
-        contentLength: insertValues.content.length,
-        usernameIsNull: insertValues.username === null,
-        contentIsNull: insertValues.content === null
+        messageType: insertValues.messageType,
+        contentLength: insertValues.content?.length || 0,
+        mediaUrl: insertValues.mediaUrl,
       });
-      
+
       const [savedMessage] = await db.insert(messages).values(insertValues).returning();
-      
+
       console.log('Message saved to database:', {
         id: savedMessage.id,
         username: savedMessage.username,
-        content: savedMessage.content.substring(0, 50) + (savedMessage.content.length > 50 ? '...' : '')
+        messageType: savedMessage.messageType,
+        hasMedia: !!savedMessage.mediaUrl,
       });
-      
+
       // Broadcast message to everyone (including sender for confirmation)
-      io.emit('message', data);
+      io.emit('message', { ...data, id: savedMessage.id, createdAt: savedMessage.createdAt });
     } catch (error) {
-      console.error('Error saving message to database:', error.message);
-      console.error('Message data:', { username: finalUsername, content: finalContent.substring(0, 50) });
-
-      // Check if it's a connection error and try to reconnect
-      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.message.includes('connection')) {
-        console.log('Database connection lost, attempting to reconnect...');
-        try {
-          // Test connection and retry once
-          await pool.query('SELECT 1');
-          console.log('Database reconnected successfully');
-
-          // Retry the insert
-          const [savedMessage] = await db.insert(messages).values(insertValues).returning();
-          console.log('Message saved after reconnection:', savedMessage.id);
-          io.emit('message', data);
-          return;
-        } catch (reconnectError) {
-          console.error('Failed to reconnect to database:', reconnectError.message);
-        }
-      }
-
+      console.error('Error saving message to database:', error);
+      console.error('Message data:', { username, content: content.substring(0, 50) });
       // Still broadcast even if database save fails
       io.emit('message', data);
     }
