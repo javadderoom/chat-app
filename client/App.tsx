@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 
 const DEFAULT_SETTINGS: UserSettings = {
   username: `User-${Math.floor(Math.random() * 1000)}`,
-  serverUrl: 'https://deroom-backend.liara.run',
+  serverUrl: 'http://localhost:3000',
   isDemoMode: false,
 };
 
