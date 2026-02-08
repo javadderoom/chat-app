@@ -1,4 +1,5 @@
 services:
+  # --- Database (Internal Only) ---
   postgres:
     image: postgres:16-alpine
     container_name: chat-postgres
@@ -7,44 +8,61 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: chat_app
-    ports:
-      - "5432:5432"
+    # EXPOSE means: "Visible to other containers, but NOT to the internet"
+    expose:
+      - "5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # The fix we confirmed works (Host Bind Mount)
+      - ./pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # --- Backend API (Internal Only) ---
   backend:
     build:
       context: ./server
       dockerfile: Dockerfile
     container_name: chat-backend
     restart: always
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_NAME: chat_app
+      # Allow Nginx to proxy requests
+      CORS_ORIGIN: "*"
     depends_on:
       postgres:
         condition: service_healthy
 
+  # --- Frontend React (Internal Only) ---
   frontend:
     build:
       context: ./client
       dockerfile: Dockerfile
     container_name: chat-frontend
     restart: always
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       - backend
 
-volumes:
-  postgres_data:
+  # --- NGINX (The Public Gatekeeper) ---
+  nginx:
+    image: nginx:alpine
+    container_name: chat-nginx
+    restart: always
+    ports:
+      - "80:80"  # <--- The ONLY public port
+    volumes:
+      # Mount the config file you created
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - frontend
+      - backend

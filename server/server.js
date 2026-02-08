@@ -3,7 +3,7 @@ const http = require('http');
 const path = require('path');
 const { Server } = require("socket.io");
 const cors = require('cors');
-const { db } = require('./db/index');
+const { db, pool } = require('./db/index');
 const { messages } = require('./db/schema');
 const { desc } = require('drizzle-orm');
 const uploadRoutes = require('./routes/upload');
@@ -132,7 +132,7 @@ io.on('connection', (socket) => {
       io.emit('message', { ...data, id: savedMessage.id, createdAt: savedMessage.createdAt });
     } catch (error) {
       console.error('Error saving message to database:', error);
-      console.error('Message data:', { username, messageType: data.messageType });
+      console.error('Message data:', { username, content: content.substring(0, 50) });
       // Still broadcast even if database save fails
       io.emit('message', data);
     }
@@ -149,26 +149,79 @@ app.get('/api/messages', async (req, res) => {
     const recentMessages = await db.select().from(messages).orderBy(desc(messages.createdAt)).limit(50);
     res.json(recentMessages);
   } catch (error) {
-    console.error('Error fetching messages:', error);
+    console.error('Error fetching messages:', error.message);
+
+    // Check if it's a connection error
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.message.includes('connection')) {
+      console.log('Database connection issue in API endpoint');
+      res.status(503).json({
+        error: 'Database temporarily unavailable',
+        retryAfter: 30
+      });
+    } else {
     res.status(500).json({ error: 'Failed to fetch messages' });
+    }
   }
 });
 
-// Test database connection on startup
-async function testDatabaseConnection() {
+// Test database connection on startup with retries
+async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
   try {
-    const { pool } = require('./db/index');
+      console.log(`Testing database connection (attempt ${attempt}/${maxRetries})...`);
     const result = await pool.query('SELECT NOW()');
     console.log('✓ Database connection successful');
     console.log('  Database time:', result.rows[0].now);
+
+      // Test that tables exist by trying to count messages
+      try {
+        const countResult = await pool.query('SELECT COUNT(*) FROM messages');
+        console.log('✓ Database tables are accessible');
+        console.log('  Current message count:', countResult.rows[0].count);
+      } catch (tableError) {
+        console.error('✗ Database tables not found:', tableError.message);
+        console.error('  Please ensure database schema is initialized');
+        return false;
+      }
+
+      return true;
   } catch (error) {
-    console.error('✗ Database connection failed:', error.message);
-    console.error('  Make sure PostgreSQL is running and accessible');
+      console.error(`✗ Database connection failed (attempt ${attempt}/${maxRetries}):`, error.message);
+
+      if (attempt === maxRetries) {
+        console.error('  Max retries reached. Please check:');
+        console.error('  - PostgreSQL container is running');
+        console.error('  - Database credentials are correct');
+        console.error('  - Network connectivity between containers');
+        return false;
+      }
+
+      console.log(`  Retrying in ${retryDelay / 1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
   }
+  }
+  return false;
 }
 
 const PORT = 3000;
 server.listen(PORT, '0.0.0.0', async () => {
   console.log(`Blackout Chat Server running on port ${PORT}`);
-  await testDatabaseConnection();
+
+  const dbConnected = await testDatabaseConnection();
+  if (!dbConnected) {
+    console.error('Failed to establish database connection. Exiting...');
+    process.exit(1);
+  }
+});
+
+process.on('SIGINT', async () => {
+  console.log("Shutting down gracefully...");
+  await pool.end(); // close all DB connections
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log("Shutting down gracefully...");
+  await pool.end(); // close all DB connections 
+  process.exit(0);
 });
