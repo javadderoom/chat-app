@@ -22,7 +22,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ currentSettings, o
     return (
       <button 
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 left-4 z-40 p-3 bg-[#21262d] border border-[#30363d] rounded-full shadow-lg text-[#c9d1d9] hover:bg-[#30363d] hover:text-white transition-all hover:scale-105"
+        className="settings_button fixed bottom-4 left-4 z-40 p-3 bg-[#21262d] border border-[#30363d] rounded-full shadow-lg text-[#c9d1d9] hover:bg-[#30363d] hover:text-white transition-all hover:scale-105"
         title="Settings"
       >
         <Settings size={20} />

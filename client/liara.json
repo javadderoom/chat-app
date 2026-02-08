@@ -1,0 +1,15 @@
+{
+  "port": 80,
+  "platform": "react",
+  "app": "pooli",
+  "build": {
+    "location": "iran"
+    
+  },
+  "react":{
+    "mirror": false
+  },
+  "node":{
+    "mirror": false
+  }
+}

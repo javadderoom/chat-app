@@ -5,6 +5,13 @@ export interface Message {
   timestamp: number;
   isSystem?: boolean;
   isMe?: boolean;
+  // Multimedia fields
+  messageType?: 'text' | 'image' | 'audio' | 'video' | 'file';
+  mediaUrl?: string;
+  mediaType?: string;
+  mediaDuration?: number;
+  fileName?: string;
+  fileSize?: number;
 }
 
 export enum ConnectionStatus {

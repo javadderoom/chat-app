@@ -1,0 +1,240 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*{
+    padding: 0;
+    margin: 0;
+}
+.root_container{
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #0d1117;
+    overflow: hidden;
+    color: #c9d1d9;
+    font-family: monospace;
+}
+.header{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background: #161b22;
+}
+.header .logo_block{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.header .logo_block .logo{
+    padding: 4px;
+    background: #21262d;
+    border-radius: 5px;
+    border: 1px solid #30363d;
+}
+.header .logo_block .logo_text{
+    font-weight: bold;
+    color: white;
+}
+.header .logo_block .status_in_logo{
+    font-size: 10px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.status_in_logo .badge{
+    border-radius: 50px;
+    width: 4px;
+    height: 4px;
+    display: inline-block;
+}
+.badge_green{
+    background-color: green;
+}
+.badge_red{
+    background-color: red;
+}
+.text-green-500{
+    color: green;
+}
+.text-red-500{
+    color: red;
+}
+.text-yellow-500{
+    color:yellow;
+}
+.text-gray-500{
+    color: gray;
+}
+main{
+    display: flex;
+    overflow-y: auto;
+    position: relative;
+    padding: 16px;
+    flex-direction: column;
+    gap: 16px;
+    scroll-behavior: smooth;
+}
+main .signal{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    color: #8b949e;
+    opacity: 50%;
+}
+.mb-4{
+    margin-bottom:16px;
+}
+.message{
+    display: flex;
+    flex-direction: column;
+    max-width: 70%;
+    
+}
+.them{
+    align-self: flex-start;
+    align-items: flex-start;
+}
+.me{
+    align-self: flex-end;
+    align-items: flex-end;
+}
+.message .info{
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 2px;
+    padding: 0 2px;
+   
+}
+.info .username{
+    font-size: x-small;
+    font-weight: bold;
+    
+}
+.text-blue-400{
+    color: #5858fd;
+}
+.text-green-400{
+    color: #02db02;
+}
+.flex-row-reverse{
+    flex-direction: row-reverse;
+}
+.flex-row{
+    flex-direction: row;
+}
+.time{
+    font-size: 10px;
+    color: #8b949e;
+}
+.message .text{
+    padding: 6px 8px;
+    border-radius: 16px;
+    font-size: medium;
+    box-shadow: 0px 1px 1px #323131;
+    word-break: break-word;
+    border: 1px solid;
+    
+    
+    
+}
+.text.them{
+    border-top-left-radius: 0px;
+    border-color: #30363d;
+    background: #21262d;
+    color:#c9d1d9;
+}
+.text.me{
+    border-top-right-radius: 0px;
+    border-color: #23863630;
+    background-color: #23863610;
+    color:white;
+}
+.status_message{
+    display: flex;
+    justify-content: center;
+    padding: 4px 0;
+}
+.status_message span{
+    text-transform: uppercase;
+    font-size: 10px;
+    color: #8b949e;
+    background: #161b22;
+    padding: 2px 6px;
+    border-radius: 50px;
+    border: 1px solid #30363d;
+}
+footer{
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    padding: 16px;
+    z-index: 20;
+}
+footer form{
+    position: relative;
+    max-width: 700px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.flex-1{
+    flex-grow: 1;
+}
+.relative{
+    position: relative;
+}
+form .message_input{
+    width: 100%;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    color: white;
+    border-radius: 16px;
+    padding: 10px 0px 10px 10px;
+    transition: all;
+    margin-left: 28px;
+}
+form .message_input:focus{
+    outline:none;
+    border:3px solid #238636;
+    
+}
+form .message_input:disabled{
+    opacity:50%;
+    cursor: not-allowed;
+}
+form button[type="submit"]{
+    padding: 10px;
+    border: 1px;
+    background: #238636;
+    color: white;
+    border-radius: 50%;
+    z-index: 100;
+    transition: colors;
+}
+form button[type="submit"]:hover{
+    background:#2ea043;
+   
+}
+form button[type="submit"]:disabled{
+    background:#21262d;
+    color:#8b949e;
+}
+.settings_button{
+    position: fixed;
+    bottom: 16px;
+    left: 4px;
+    padding: 10px;
+    z-index: 40;
+    background: #21262d;
+    border: 1px;
+    border-color: #30363d;
+    border-radius: 50%;
+    color: #c9d1d9;
+    transition: all;
+}
