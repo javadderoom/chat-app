@@ -64,7 +64,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
     const prevMessagesLengthRef = useRef(messages.length);
 
     const truncateText = (text: string, length: number = 20) => {
@@ -79,6 +79,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
         prevMessagesLengthRef.current = messages.length;
     }, [messages]);
+
+    useEffect(() => {
+        if (inputRef.current) {
+            inputRef.current.style.height = 'auto';
+            inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 150)}px`;
+        }
+    }, [input]);
 
     const handleSend = (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -508,16 +515,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                 />
 
                                 <div className="input_wrapper">
-                                    <input
+                                    <textarea
                                         ref={inputRef}
-                                        type="text"
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
                                         placeholder={editingMessageId ? "Edit your message..." : replyingToMessage ? "Write a reply..." : (status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting...")}
                                         disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
                                         className="message_input"
+                                        rows={1}
                                         onKeyDown={(e) => {
-                                            if (e.key === 'Escape') {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSend();
+                                            } else if (e.key === 'Escape') {
                                                 cancelEdit();
                                                 cancelReply();
                                             }

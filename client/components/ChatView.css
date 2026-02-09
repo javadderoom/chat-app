@@ -255,7 +255,22 @@ footer {
     resize: none;
     line-height: 1.5;
     font-family: inherit;
-    overflow-y: hidden;
+    overflow-y: auto;
+    max-height: 150px;
+    display: block;
+}
+
+.message_input::-webkit-scrollbar {
+    width: 4px;
+}
+
+.message_input::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.message_input::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 2px;
 }
 
 .send_button {
