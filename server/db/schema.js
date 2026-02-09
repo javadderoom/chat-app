@@ -1,4 +1,4 @@
-const { pgTable, pgEnum, text, timestamp, uuid, varchar, integer } = require('drizzle-orm/pg-core');
+const { pgTable, pgEnum, text, timestamp, uuid, varchar, integer, boolean } = require('drizzle-orm/pg-core');
 
 // Message type enum
 const messageTypeEnum = pgEnum('message_type', ['text', 'image', 'audio', 'video', 'file']);
@@ -30,6 +30,8 @@ const messages = pgTable('messages', {
   fileName: varchar('file_name', { length: 255 }),    // Original file name
   fileSize: integer('file_size'),           // File size in bytes
 
+  isDeleted: boolean('is_deleted').default(false).notNull(),
+  updatedAt: timestamp('updated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

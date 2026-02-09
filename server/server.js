@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const cors = require('cors');
 const { db, pool } = require('./db/index');
 const { messages } = require('./db/schema');
-const { desc } = require('drizzle-orm');
+const { desc, eq, ne } = require('drizzle-orm');
 const uploadRoutes = require('./routes/upload');
 
 const app = express();
@@ -138,6 +138,91 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle Message Edit
+  socket.on('editMessage', async (data) => {
+    console.log('--- DATABASE EDIT START ---');
+    console.log('Received edit data:', JSON.stringify(data));
+    const { id, text } = data;
+
+    if (!id || !text) {
+      console.error('Validation failed: Missing ID or Text');
+      return;
+    }
+
+    try {
+      console.log(`Executing update query for ID: ${id}`);
+      const updateResult = await db.update(messages)
+        .set({
+          content: text,
+          updatedAt: new Date(),
+        })
+        .where(eq(messages.id, id))
+        .returning();
+
+      console.log('Query result length:', updateResult.length);
+
+      if (updateResult.length > 0) {
+        const updatedMessage = updateResult[0];
+        console.log('✓ Message updated in DB:', updatedMessage.id);
+        // Broadcast update to all clients
+        io.emit('messageUpdated', {
+          id: updatedMessage.id,
+          text: updatedMessage.content,
+          updatedAt: updatedMessage.updatedAt,
+        });
+      } else {
+        console.warn('⚠ No message found in DB with ID:', id);
+        // If no row was updated, it means the ID was not found
+        // This is the primary indicator that the client is sending a tempId instead of a UUID
+      }
+    } catch (error) {
+      console.error('✗ CRITICAL ERROR editing message:', error);
+    }
+    console.log('--- DATABASE EDIT END ---');
+  });
+
+  // Handle Message Delete
+  socket.on('deleteMessage', async (data) => {
+    console.log('--- DATABASE DELETE START ---');
+    console.log('Received delete data:', JSON.stringify(data));
+    const { id } = data;
+
+    if (!id) {
+      console.error('Validation failed: Missing ID');
+      return;
+    }
+
+    try {
+      console.log(`Executing soft-delete query for ID: ${id}`);
+      const deleteResult = await db.update(messages)
+        .set({
+          isDeleted: true,
+          content: '', // Clear content for privacy
+          mediaUrl: null, // Remove media reference
+          mediaType: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(messages.id, id))
+        .returning();
+
+      console.log('Query result length:', deleteResult.length);
+
+      if (deleteResult.length > 0) {
+        const deletedMessage = deleteResult[0];
+        console.log('✓ Message soft-deleted in DB:', deletedMessage.id);
+        // Broadcast delete to all clients
+        io.emit('messageDeleted', {
+          id: deletedMessage.id,
+        });
+      } else {
+        console.warn('⚠ No message found in DB with ID:', id);
+      }
+    } catch (error) {
+      console.error('✗ CRITICAL ERROR deleting message:', error);
+    }
+    console.log('--- DATABASE DELETE END ---');
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected');
   });
@@ -146,7 +231,10 @@ io.on('connection', (socket) => {
 // Example API endpoint to get recent messages
 app.get('/api/messages', async (req, res) => {
   try {
-    const recentMessages = await db.select().from(messages).orderBy(desc(messages.createdAt)).limit(50);
+    const recentMessages = await db.select().from(messages)
+      .where(eq(messages.isDeleted, false))
+      .orderBy(desc(messages.createdAt))
+      .limit(50);
     res.json(recentMessages);
   } catch (error) {
     console.error('Error fetching messages:', error.message);
@@ -159,7 +247,7 @@ app.get('/api/messages', async (req, res) => {
         retryAfter: 30
       });
     } else {
-    res.status(500).json({ error: 'Failed to fetch messages' });
+      res.status(500).json({ error: 'Failed to fetch messages' });
     }
   }
 });
@@ -167,11 +255,11 @@ app.get('/api/messages', async (req, res) => {
 // Test database connection on startup with retries
 async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-  try {
+    try {
       console.log(`Testing database connection (attempt ${attempt}/${maxRetries})...`);
-    const result = await pool.query('SELECT NOW()');
-    console.log('✓ Database connection successful');
-    console.log('  Database time:', result.rows[0].now);
+      const result = await pool.query('SELECT NOW()');
+      console.log('✓ Database connection successful');
+      console.log('  Database time:', result.rows[0].now);
 
       // Test that tables exist by trying to count messages
       try {
@@ -185,7 +273,7 @@ async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
       }
 
       return true;
-  } catch (error) {
+    } catch (error) {
       console.error(`✗ Database connection failed (attempt ${attempt}/${maxRetries}):`, error.message);
 
       if (attempt === maxRetries) {
@@ -198,7 +286,7 @@ async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
 
       console.log(`  Retrying in ${retryDelay / 1000} seconds...`);
       await new Promise(resolve => setTimeout(resolve, retryDelay));
-  }
+    }
   }
   return false;
 }

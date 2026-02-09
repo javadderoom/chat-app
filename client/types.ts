@@ -12,6 +12,9 @@ export interface Message {
   mediaDuration?: number;
   fileName?: string;
   fileSize?: number;
+  // Edit/Delete fields
+  updatedAt?: string | number;
+  isDeleted?: boolean;
 }
 
 export enum ConnectionStatus {

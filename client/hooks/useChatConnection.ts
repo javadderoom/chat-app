@@ -8,6 +8,12 @@ interface DbMessage {
   username: string;
   content: string;
   createdAt: string | Date;
+  messageType: string;
+  mediaUrl?: string;
+  mediaType?: string;
+  mediaDuration?: number;
+  fileName?: string;
+  fileSize?: number;
 }
 
 // Demo messages for simulation mode
@@ -33,8 +39,9 @@ export const useChatConnection = (settings: UserSettings) => {
   }, [settings]);
 
   const addMessage = useCallback((text: string, sender: string, isMe: boolean = false, isSystem: boolean = false) => {
+    const id = Math.random().toString(36).substring(7);
     const newMessage: Message = {
-      id: Math.random().toString(36).substring(7),
+      id,
       text,
       sender,
       timestamp: Date.now(),
@@ -42,6 +49,7 @@ export const useChatConnection = (settings: UserSettings) => {
       isSystem
     };
     setMessages(prev => [...prev, newMessage]);
+    return id;
   }, []);
 
   // Initialize connection
@@ -84,6 +92,12 @@ export const useChatConnection = (settings: UserSettings) => {
               timestamp: new Date(dbMsg.createdAt).getTime(),
               isMe: dbMsg.username === settings.username,
               isSystem: false,
+              messageType: dbMsg.messageType as any,
+              mediaUrl: dbMsg.mediaUrl,
+              mediaType: dbMsg.mediaType,
+              mediaDuration: dbMsg.mediaDuration,
+              fileName: dbMsg.fileName,
+              fileSize: dbMsg.fileSize,
             }));
 
           // Set loaded messages (this will replace any existing messages)
@@ -112,22 +126,56 @@ export const useChatConnection = (settings: UserSettings) => {
       addMessage(`Disconnected: ${reason}`, "System", false, true);
     });
 
-    newSocket.on('message', (data: { user: string, text: string }) => {
-      const isFromMe = data.user === settingsRef.current.username;
+    newSocket.on('message', (data: {
+      id?: string;
+      tempId?: string;
+      user?: string;
+      username?: string;
+      text: string;
+      createdAt?: string;
+      messageType?: string;
+      mediaUrl?: string;
+      mediaType?: string;
+      mediaDuration?: number;
+      fileName?: string;
+      fileSize?: number;
+    }) => {
+      const senderName = (data.user || data.username || '').trim().toLowerCase();
+      const currentUserName = (settingsRef.current.username || '').trim().toLowerCase();
+      const isFromMe = senderName === currentUserName;
 
-      // Filter out our own messages - we already show them optimistically
-      if (isFromMe) {
-        return;
+      // Robust synchronization: check isFromMe OR tempId match
+      const isOptimisticMatch = data.tempId ? true : false; // We'll check the actual ID inside the map
+
+      if (data.tempId || isFromMe) {
+        let matched = false;
+        setMessages(prev => prev.map(msg => {
+          if (msg.id === data.tempId || (isFromMe && msg.text === data.text && !msg.id.includes('-'))) {
+            matched = true;
+            return {
+              ...msg,
+              id: data.id!,
+              timestamp: data.createdAt ? new Date(data.createdAt).getTime() : msg.timestamp
+            };
+          }
+          return msg;
+        }));
+
+        // If we synced an optimistic message, we're done with this event
+        if (matched) return;
       }
 
       const currentTime = Date.now();
 
       setMessages(prev => {
-        // Check for duplicates from other users within a reasonable time window
+        // Prevent duplicates for all messages by checking ID
+        if (data.id && prev.some(m => m.id === data.id)) return prev;
+
+        // Check for duplicate content from same user within a short window (content-based fallback)
         const recentTime = currentTime - 10000; // 10 second window
         const duplicate = prev.find(
           msg => msg.text === data.text &&
-            msg.sender === data.user &&
+            msg.sender === (data.user || data.username) &&
             msg.timestamp > recentTime &&
             !msg.isSystem
         );
@@ -138,15 +186,35 @@ export const useChatConnection = (settings: UserSettings) => {
 
         // Add new message from other users
         const newMessage: Message = {
-          id: Math.random().toString(36).substring(7),
+          id: data.id || Math.random().toString(36).substring(7), // Use server ID if available
           text: data.text,
-          sender: data.user,
-          timestamp: currentTime,
-          isMe: false, // Always false since we filtered out our own messages
+          sender: data.user || data.username,
+          timestamp: data.createdAt ? new Date(data.createdAt).getTime() : currentTime,
+          isMe: false,
           isSystem: false,
+          // Include media fields
+          messageType: data.messageType as any,
+          mediaUrl: data.mediaUrl,
+          mediaType: data.mediaType,
+          mediaDuration: data.mediaDuration,
+          fileName: data.fileName,
+          fileSize: data.fileSize,
         };
         return [...prev, newMessage];
       });
+    });
+
+    // Handle initial connect - request users list or message history if needed
+    newSocket.on('messageUpdated', (data: { id: string, text: string, updatedAt: string }) => {
+      setMessages(prev => prev.map(msg =>
+        msg.id === data.id
+          ? { ...msg, text: data.text, updatedAt: new Date(data.updatedAt).getTime() }
+          : msg
+      ));
+    });
+
+    newSocket.on('messageDeleted', (data: { id: string }) => {
+      setMessages(prev => prev.filter(msg => msg.id !== data.id));
     });
 
     setSocket(newSocket);
@@ -177,7 +245,7 @@ export const useChatConnection = (settings: UserSettings) => {
     }
 
     // Add local message immediately for optimistic UI
-    addMessage(trimmedText, username, true);
+    const tempId = addMessage(trimmedText, username, true);
 
     if (settingsRef.current.isDemoMode) {
       // Simulate reply in demo mode
@@ -189,7 +257,8 @@ export const useChatConnection = (settings: UserSettings) => {
       // Send to server - ensure both fields are strings and non-empty
       const messageData = {
         user: String(username),
-        text: String(trimmedText)
+        text: String(trimmedText),
+        tempId: tempId
       };
 
       // Double-check before sending
@@ -230,8 +299,9 @@ export const useChatConnection = (settings: UserSettings) => {
     const username = settingsRef.current.username?.trim() || 'Anonymous';
 
     // Add local message immediately for optimistic UI
+    const tempId = Math.random().toString(36).substring(7);
     const localMessage: Message = {
-      id: Math.random().toString(36).substring(7),
+      id: tempId,
       text: `[${uploadData.messageType.toUpperCase()}] ${uploadData.fileName}`,
       sender: username,
       timestamp: Date.now(),
@@ -255,6 +325,7 @@ export const useChatConnection = (settings: UserSettings) => {
       const messageData = {
         user: username,
         username: username,
+        tempId: tempId,
         messageType: uploadData.messageType,
         mediaUrl: uploadData.mediaUrl,
         mediaType: uploadData.mediaType,
@@ -271,11 +342,35 @@ export const useChatConnection = (settings: UserSettings) => {
     }
   }, [socket, addMessage]);
 
+  const editMessage = useCallback((id: string, newText: string) => {
+    if (!socket || !socket.connected) return;
+
+    // Optimistic update
+    setMessages(prev => prev.map(msg =>
+      msg.id === id
+        ? { ...msg, text: newText, updatedAt: Date.now() }
+        : msg
+    ));
+
+    socket.emit('editMessage', { id, text: newText });
+  }, [socket]);
+
+  const deleteMessage = useCallback((id: string) => {
+    if (!socket || !socket.connected) return;
+
+    // Optimistic update
+    setMessages(prev => prev.filter(msg => msg.id !== id));
+
+    socket.emit('deleteMessage', { id });
+  }, [socket]);
+
   return {
     messages,
     status,
     sendMessage,
     sendMediaMessage,
-    clearMessages
+    clearMessages,
+    editMessage,
+    deleteMessage
   };
 };

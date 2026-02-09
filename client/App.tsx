@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, WifiOff, Terminal, Activity, Mic, Trash2, X, Square } from 'lucide-react';
+import { Send, WifiOff, Terminal, Activity, Mic, Trash2, X, Square, Edit2, Check, MoreVertical } from 'lucide-react';
 import { useChatConnection } from './hooks/useChatConnection';
 import { useVoiceRecorder } from './hooks/useVoiceRecorder';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ServerHelpModal } from './components/ServerHelpModal';
 import { FileUploadButton, UploadResult } from './components/FileUploadButton';
+import { VoiceMessagePlayer } from './components/VoiceMessagePlayer';
 import { UserSettings, ConnectionStatus } from './types';
 import { format } from 'date-fns';
 
@@ -25,13 +26,22 @@ const App: React.FC = () => {
   const [showServerHelp, setShowServerHelp] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, status, sendMessage, sendMediaMessage } = useChatConnection(settings);
+  const { messages, status, sendMessage, sendMediaMessage, editMessage, deleteMessage } = useChatConnection(settings);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Edit & Menu state
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Save settings when changed
   const handleSaveSettings = (newSettings: UserSettings) => {
-    setSettings(newSettings);
-    localStorage.setItem('blackout_settings', JSON.stringify(newSettings));
+    const sanitizedSettings = {
+      ...newSettings,
+      username: newSettings.username.trim()
+    };
+    setSettings(sanitizedSettings);
+    localStorage.setItem('blackout_settings', JSON.stringify(sanitizedSettings));
   };
 
   // Auto-scroll to bottom
@@ -42,8 +52,14 @@ const App: React.FC = () => {
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!input.trim()) return;
-    sendMessage(input);
-    setInput('');
+
+    if (editingMessageId) {
+      editMessage(editingMessageId, input);
+      setEditingMessageId(null);
+    } else {
+      sendMessage(input);
+    }
+
     setInput('');
   };
 
@@ -80,6 +96,47 @@ const App: React.FC = () => {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const startEditing = (msg: any) => {
+    setEditingMessageId(msg.id);
+    setInput(msg.text);
+    // Use timeout to ensure input is available if it was disabled
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+  };
+
+  const cancelEdit = () => {
+    setEditingMessageId(null);
+    setInput('');
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this message?')) {
+      deleteMessage(id);
+    }
+    setActiveMenuId(null);
+  };
+
+  const handleMessageClick = (msg: any) => {
+    if (!msg.isMe || editingMessageId === msg.id) return;
+    setActiveMenuId(prev => prev === msg.id ? null : msg.id);
+  };
+
+  // Close menu on scroll or click outside
+  useEffect(() => {
+    const handleEvents = () => setActiveMenuId(null);
+    window.addEventListener('scroll', handleEvents, true);
+    window.addEventListener('click', (e) => {
+      if (!(e.target as HTMLElement).closest('.message_actions_popup') &&
+        !(e.target as HTMLElement).closest('.text.me')) {
+        handleEvents();
+      }
+    }, true);
+    return () => {
+      window.removeEventListener('scroll', handleEvents, true);
+    };
+  }, []);
 
   // Status indicator helpers
   const getStatusColor = () => {
@@ -168,8 +225,27 @@ const App: React.FC = () => {
               </div>
 
               <div
-                className={`text ${msg.isMe ? 'me' : 'them'}`}
+                className={`text ${msg.isMe ? 'me' : 'them'} relative group cursor-pointer`}
+                onClick={() => handleMessageClick(msg)}
               >
+                {msg.isMe && activeMenuId === msg.id && (
+                  <div className="message_actions_popup">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); startEditing(msg); setActiveMenuId(null); }}
+                      className="menu_item"
+                    >
+                      <Edit2 size={14} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); }}
+                      className="menu_item delete"
+                    >
+                      <Trash2 size={14} />
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                )}
                 {msg.messageType === 'image' && msg.mediaUrl && (
                   <div className="media_content">
                     <img
@@ -193,10 +269,9 @@ const App: React.FC = () => {
 
                 {(msg.messageType === 'audio' || msg.messageType === 'voice') && msg.mediaUrl && (
                   <div className="media_content">
-                    <audio
+                    <VoiceMessagePlayer
                       src={msg.mediaUrl}
-                      controls
-                      className="media_audio"
+                      duration={msg.mediaDuration}
                     />
                   </div>
                 )}
@@ -204,6 +279,7 @@ const App: React.FC = () => {
                 {!msg.mediaUrl && msg.text && (
                   <div className="message_text_content">
                     {msg.text}
+                    {msg.updatedAt && <span className="text-[10px] text-gray-500 ml-2 italic">(edited)</span>}
                   </div>
                 )}
               </div>
@@ -223,7 +299,7 @@ const App: React.FC = () => {
       {/* Input Area */}
       <footer>
         <form onSubmit={handleSend} className="footer_form">
-          <div className={`input_pill ${isRecording ? 'recording_active' : ''}`}>
+          <div className={`input_pill ${isRecording ? 'recording_active' : ''} ${editingMessageId ? 'editing_mode' : ''}`}>
             {isRecording ? (
               <div className="recording_container">
                 <div className="recording_indicator animate-pulse">
@@ -258,13 +334,27 @@ const App: React.FC = () => {
 
                 <div className="input_wrapper">
                   <input
+                    ref={inputRef}
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder={status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting..."}
+                    placeholder={editingMessageId ? "Edit message..." : (status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting...")}
                     disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
                     className="message_input"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') cancelEdit();
+                    }}
                   />
+                  {editingMessageId && (
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-500"
+                      title="Cancel Edit"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -282,10 +372,10 @@ const App: React.FC = () => {
             input.trim() ? (
               <button
                 type="submit"
-                className="send_button"
+                className={`send_button ${editingMessageId ? 'editing' : ''}`}
                 disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
               >
-                <Send size={20} />
+                {editingMessageId ? <Check size={20} /> : <Send size={20} />}
               </button>
             ) : (
               <button
