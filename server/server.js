@@ -263,6 +263,42 @@ io.on('connection', (socket) => {
     console.log('--- DATABASE DELETE END ---');
   });
 
+  // Handle Reaction Toggle
+  socket.on('toggleReaction', async (data) => {
+    const { messageId, emoji, username } = data;
+    if (!messageId || !emoji || !username) return;
+
+    try {
+      const result = await db.select().from(messages).where(eq(messages.id, messageId));
+      if (result.length === 0) return;
+
+      const message = result[0];
+      const reactions = message.reactions || {};
+      const currentReactors = reactions[emoji] || [];
+
+      let newReactors;
+      if (currentReactors.includes(username)) {
+        newReactors = currentReactors.filter(u => u !== username);
+      } else {
+        newReactors = [...currentReactors, username];
+      }
+
+      if (newReactors.length === 0) {
+        delete reactions[emoji];
+      } else {
+        reactions[emoji] = newReactors;
+      }
+
+      await db.update(messages)
+        .set({ reactions })
+        .where(eq(messages.id, messageId));
+
+      io.emit('reactionUpdated', { messageId, reactions });
+    } catch (error) {
+      console.error('Error toggling reaction:', error);
+    }
+  });
+
   // Handle Chat Creation
   socket.on('createChat', async (data) => {
     const { name, description } = data;

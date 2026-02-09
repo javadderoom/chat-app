@@ -1,4 +1,4 @@
-const { pgTable, pgEnum, text, timestamp, uuid, varchar, integer, boolean } = require('drizzle-orm/pg-core');
+const { pgTable, pgEnum, text, timestamp, uuid, varchar, integer, boolean, jsonb } = require('drizzle-orm/pg-core');
 
 // Message type enum
 const messageTypeEnum = pgEnum('message_type', ['text', 'image', 'audio', 'video', 'file']);
@@ -41,6 +41,7 @@ const messages = pgTable('messages', {
 
   isDeleted: boolean('is_deleted').default(false).notNull(),
   replyToId: uuid('reply_to_id').references(() => messages.id),
+  reactions: jsonb('reactions').default({}).notNull(),
   updatedAt: timestamp('updated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

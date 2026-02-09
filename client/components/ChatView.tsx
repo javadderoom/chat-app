@@ -10,6 +10,8 @@ import './ChatView.css';
 
 import { ConfirmModal } from './ConfirmModal';
 
+const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉'];
+
 interface Chat {
     id: string;
     name: string;
@@ -28,6 +30,7 @@ interface ChatViewProps {
     setShowSidebar: (show: boolean) => void;
     showSidebar: boolean;
     setShowServerHelp: (show: boolean) => void;
+    toggleReaction: (messageId: string, emoji: string) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -41,7 +44,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     deleteMessage,
     setShowSidebar,
     showSidebar,
-    setShowServerHelp
+    setShowServerHelp,
+    toggleReaction
 }) => {
     const [input, setInput] = useState('');
     const [uploadError, setUploadError] = useState<string | null>(null);
@@ -222,40 +226,55 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             >
                                 {activeMenuId === msg.id && createPortal(
                                     <div
-                                        className="message_actions_popup"
+                                        className="message_actions_wrapper"
                                         style={{
                                             top: `${menuPosition.top}px`,
-                                            right: `${menuPosition.right}px`,
-                                            transform: 'translateY(-100%) translateY(-8px)'
+                                            right: `${menuPosition.right}px`
                                         }}
-                                        onClick={(e) => e.stopPropagation()}
                                     >
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); startReply(msg); }}
-                                            className="menu_item"
+                                        <div
+                                            className="message_actions_popup"
+                                            onClick={(e) => e.stopPropagation()}
                                         >
-                                            <Mic size={14} style={{ transform: 'rotate(180deg)' }} />
-                                            <span>Reply</span>
-                                        </button>
+                                            <div className="emoji_reactions_picker">
+                                                {EMOJIS.map(emoji => (
+                                                    <button
+                                                        key={emoji}
+                                                        className={`emoji_btn ${msg.reactions?.[emoji]?.includes(settings.username) ? 'active' : ''}`}
+                                                        onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); setActiveMenuId(null); }}
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div className="menu_divider"></div>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); startReply(msg); }}
+                                                className="menu_item"
+                                            >
+                                                <Mic size={14} style={{ transform: 'rotate(180deg)' }} />
+                                                <span>Reply</span>
+                                            </button>
 
-                                        {msg.isMe && (
-                                            <>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); startEditing(msg); setActiveMenuId(null); }}
-                                                    className="menu_item"
-                                                >
-                                                    <Edit2 size={14} />
-                                                    <span>Edit</span>
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); }}
-                                                    className="menu_item delete"
-                                                >
-                                                    <Trash2 size={14} />
-                                                    <span>Delete</span>
-                                                </button>
-                                            </>
-                                        )}
+                                            {msg.isMe && (
+                                                <>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); startEditing(msg); setActiveMenuId(null); }}
+                                                        className="menu_item"
+                                                    >
+                                                        <Edit2 size={14} />
+                                                        <span>Edit</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); }}
+                                                        className="menu_item delete"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                        <span>Delete</span>
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>,
                                     document.body
                                 )}
@@ -310,6 +329,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                     <div className="message_text_content">
                                         {msg.text}
                                         {msg.updatedAt && <span className="text-[10px] text-gray-500 ml-2 italic">(edited)</span>}
+                                    </div>
+                                )}
+
+                                {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                                    <div className="message_reactions">
+                                        {Object.entries(msg.reactions).map(([emoji, reactors]) => {
+                                            const users = reactors as string[];
+                                            return (
+                                                <div
+                                                    key={emoji}
+                                                    className={`reaction_pill ${users.includes(settings.username) ? 'active' : ''}`}
+                                                    onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
+                                                    title={users.join(', ')}
+                                                >
+                                                    <span className="reaction_emoji">{emoji}</span>
+                                                    <span className="reaction_count">{users.length}</span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>

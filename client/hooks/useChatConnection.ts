@@ -238,6 +238,14 @@ export const useChatConnection = (settings: UserSettings) => {
       setMessages(prev => prev.filter(msg => msg.id !== data.id));
     });
 
+    newSocket.on('reactionUpdated', (data: { messageId: string, reactions: Record<string, string[]> }) => {
+      setMessages(prev => prev.map(msg =>
+        msg.id === data.messageId
+          ? { ...msg, reactions: data.reactions }
+          : msg
+      ));
+    });
+
     newSocket.on('chatCreated', (newChat: Chat) => {
       setChats(prev => [newChat, ...prev]);
     });
@@ -450,6 +458,32 @@ export const useChatConnection = (settings: UserSettings) => {
     socket.emit('createChat', { name, description });
   }, [socket]);
 
+  const toggleReaction = useCallback((messageId: string, emoji: string) => {
+    if (!socket || !socket.connected) return;
+    const username = settingsRef.current.username;
+
+    // Optimistic update
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === messageId) {
+        const reactions = { ...(msg.reactions || {}) };
+        const currentReactors = reactions[emoji] || [];
+        const newReactors = currentReactors.includes(username)
+          ? currentReactors.filter(u => u !== username)
+          : [...currentReactors, username];
+
+        if (newReactors.length === 0) {
+          delete reactions[emoji];
+        } else {
+          reactions[emoji] = newReactors;
+        }
+        return { ...msg, reactions };
+      }
+      return msg;
+    }));
+
+    socket.emit('toggleReaction', { messageId, emoji, username });
+  }, [socket]);
+
   return {
     messages,
     chats,
@@ -462,6 +496,7 @@ export const useChatConnection = (settings: UserSettings) => {
     editMessage,
     deleteMessage,
     createChat,
-    fetchChats
+    fetchChats,
+    toggleReaction
   };
 };

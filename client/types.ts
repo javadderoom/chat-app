@@ -17,6 +17,7 @@ export interface Message {
   isDeleted?: boolean;
   replyToId?: string;
   chatId?: string;
+  reactions?: Record<string, string[]>; // emoji -> list of usernames
 }
 
 export interface Chat {

@@ -24,7 +24,7 @@ const App: React.FC = () => {
 
   const {
     messages, chats, activeChatId, setActiveChatId, status,
-    sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat
+    sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction
   } = useChatConnection(settings);
 
   const handleSaveSettings = (newSettings: UserSettings) => {
@@ -61,6 +61,7 @@ const App: React.FC = () => {
         setShowSidebar={setShowSidebar}
         showSidebar={showSidebar}
         setShowServerHelp={setShowServerHelp}
+        toggleReaction={toggleReaction}
       />
 
       <SettingsPanel
