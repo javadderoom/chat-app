@@ -6,30 +6,28 @@ import './SettingsPanel.css';
 
 interface SettingsPanelProps {
   currentSettings: UserSettings;
+  isOpen: boolean;
+  onClose: () => void;
   onSave: (settings: UserSettings) => void;
   onOpenServerHelp: () => void;
 }
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({ currentSettings, onSave, onOpenServerHelp }) => {
-  const [isOpen, setIsOpen] = useState(false);
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({
+  currentSettings,
+  isOpen,
+  onClose,
+  onSave,
+  onOpenServerHelp
+}) => {
   const [formData, setFormData] = useState(currentSettings);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
-    setIsOpen(false);
   };
 
   if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="settings-trigger"
-        title="Access Configuration"
-      >
-        <Settings size={20} />
-      </button>
-    );
+    return null;
   }
 
   return (
@@ -46,7 +44,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ currentSettings, o
             <p className="settings-subtitle">Parameters & connection settings</p>
           </div>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={onClose}
             className="close-button"
           >
             <X size={20} />

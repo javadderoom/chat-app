@@ -21,10 +21,11 @@ const App: React.FC = () => {
 
   const [showServerHelp, setShowServerHelp] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const {
     messages, chats, activeChatId, setActiveChatId, status,
-    sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage
+    sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker
   } = useChatConnection(settings);
 
   const handleSaveSettings = (newSettings: UserSettings) => {
@@ -47,6 +48,7 @@ const App: React.FC = () => {
         status={status}
         createChat={createChat}
         setShowSidebar={setShowSidebar}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <ChatView
@@ -63,13 +65,22 @@ const App: React.FC = () => {
         setShowServerHelp={setShowServerHelp}
         toggleReaction={toggleReaction}
         forwardMessage={forwardMessage}
+        sendSticker={sendSticker}
         chats={chats}
       />
 
       <SettingsPanel
         currentSettings={settings}
-        onSave={handleSaveSettings}
-        onOpenServerHelp={() => setShowServerHelp(true)}
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={(newSettings) => {
+          handleSaveSettings(newSettings);
+          setIsSettingsOpen(false);
+        }}
+        onOpenServerHelp={() => {
+          setShowServerHelp(true);
+          setIsSettingsOpen(false);
+        }}
       />
 
       {showServerHelp && (

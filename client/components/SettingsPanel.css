@@ -284,32 +284,7 @@
     color: #58a6ff;
 }
 
-/* Floating Trigger Button */
-.settings-trigger {
-    position: fixed;
-    top: 0.75rem;
-    right: 1rem;
-    z-index: 40;
-    padding: 0.55rem;
-    border-radius: 5px;
-    background-color: #21262d;
-    border: 1px solid #30363d;
 
-    color: #c9d1d9;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.settings-trigger:hover {
-    background-color: #30363d;
-    color: #ffffff;
-    transform: scale(1.1);
-}
-
-.settings-trigger:active {
-    transform: scale(0.95);
-}
 
 /* Animations */
 @keyframes fadeIn {

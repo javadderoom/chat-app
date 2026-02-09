@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Terminal, Plus, MessageSquare, X } from 'lucide-react';
+import { Terminal, Plus, MessageSquare, X, Settings } from 'lucide-react';
 import './ChatList.css';
 
 interface Chat {
@@ -15,6 +15,7 @@ interface ChatListProps {
     status: string;
     createChat: (name: string, description: string) => void;
     setShowSidebar: (show: boolean) => void;
+    onOpenSettings: () => void;
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
@@ -23,7 +24,8 @@ export const ChatList: React.FC<ChatListProps> = ({
     setActiveChatId,
     status,
     createChat,
-    setShowSidebar
+    setShowSidebar,
+    onOpenSettings
 }) => {
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatName, setNewChatName] = useState('');
@@ -81,6 +83,9 @@ export const ChatList: React.FC<ChatListProps> = ({
                         <div className={`status_dot ${status.toLowerCase()}`}></div>
                         <span>{status}</span>
                     </div>
+                    <button onClick={onOpenSettings} className="footer_settings_button" title="Settings">
+                        <Settings size={18} />
+                    </button>
                 </div>
             </aside>
 

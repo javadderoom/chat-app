@@ -4,6 +4,7 @@ import { Send, WifiOff, Activity, Mic, Trash2, X, Square, Edit2, Check, Menu, Sh
 import { format } from 'date-fns';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
+import { StickerPicker } from './StickerPicker';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { UserSettings, ConnectionStatus, Message } from '../types';
 import './ChatView.css';
@@ -33,6 +34,7 @@ interface ChatViewProps {
     setShowServerHelp: (show: boolean) => void;
     toggleReaction: (messageId: string, emoji: string) => void;
     forwardMessage: (message: Message, targetChatId: string) => void;
+    sendSticker: (stickerId: string) => void;
     chats: Chat[];
 }
 
@@ -50,6 +52,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setShowServerHelp,
     toggleReaction,
     forwardMessage,
+    sendSticker,
     chats
 }) => {
     const [input, setInput] = useState('');
@@ -62,6 +65,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
     const [messageToForward, setMessageToForward] = useState<Message | null>(null);
     const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
+    const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -264,7 +268,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         <div
                             id={`msg-${msg.id}`}
                             key={msg.id}
-                            className={`message ${msg.isMe ? 'me' : 'them'}`}
+                            className={`message ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_msg' : ''}`}
                         >
                             <div className={`info ${msg.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                 <span className={`username text-xs font-bold ${msg.isMe ? 'text-green-400' : 'text-blue-400'}`}>
@@ -276,7 +280,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             </div>
 
                             <div
-                                className={`text ${msg.isMe ? 'me' : 'them'} relative group cursor-pointer`}
+                                className={`text ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_text' : ''} relative group cursor-pointer`}
                                 onClick={(e) => handleMessageClick(e, msg)}
                             >
                                 {activeMenuId === msg.id && createPortal(
@@ -400,7 +404,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                     </div>
                                 )}
 
-                                {(msg.text && (!msg.mediaUrl || (!msg.text.startsWith('[IMAGE]') && !msg.text.startsWith('[VIDEO]') && !msg.text.startsWith('[AUDIO]') && !msg.text.startsWith('[FILE]')))) && (
+                                {msg.messageType === 'sticker' && msg.stickerId && (
+                                    <div className="sticker_container">
+                                        <img
+                                            src={`/stickers/${msg.stickerId}.svg`}
+                                            alt="sticker"
+                                            className="sticker_image"
+                                        />
+                                    </div>
+                                )}
+
+                                {(msg.text && (msg.messageType !== 'sticker' && (!msg.mediaUrl || (!msg.text.startsWith('[IMAGE]') && !msg.text.startsWith('[VIDEO]') && !msg.text.startsWith('[AUDIO]') && !msg.text.startsWith('[FILE]'))))) && (
                                     <div className="message_text_content">
                                         {msg.text}
                                         {msg.updatedAt && <span className="text-[10px] text-gray-500 ml-2 italic">(edited)</span>}
@@ -504,6 +518,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             </div>
                         ) : (
                             <>
+                                <button
+                                    type="button"
+                                    className="sticker_trigger"
+                                    onClick={() => setIsStickerPickerOpen(!isStickerPickerOpen)}
+                                    title="Stickers"
+                                >
+                                    <Activity size={20} />
+                                </button>
+
+                                {isStickerPickerOpen && (
+                                    <StickerPicker
+                                        onSelect={(id) => {
+                                            sendSticker(id);
+                                            setIsStickerPickerOpen(false);
+                                        }}
+                                        onClose={() => setIsStickerPickerOpen(false)}
+                                    />
+                                )}
+
                                 <FileUploadButton
                                     serverUrl={settings.serverUrl}
                                     disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}

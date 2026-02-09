@@ -6,12 +6,13 @@ export interface Message {
   isSystem?: boolean;
   isMe?: boolean;
   // Multimedia fields
-  messageType?: 'text' | 'image' | 'audio' | 'video' | 'file';
+  messageType?: 'text' | 'image' | 'audio' | 'video' | 'file' | 'sticker';
   mediaUrl?: string;
   mediaType?: string;
   mediaDuration?: number;
   fileName?: string;
   fileSize?: number;
+  stickerId?: string;
   // Edit/Delete fields
   updatedAt?: string | number;
   isDeleted?: boolean;

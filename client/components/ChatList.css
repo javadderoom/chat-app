@@ -131,6 +131,9 @@
 .sidebar_footer {
     padding: 15px 20px;
     border-top: 1px solid var(--glass-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .connection_status {
@@ -139,6 +142,26 @@
     gap: 10px;
     color: var(--text-dim);
     font-size: 0.8rem;
+}
+
+.footer_settings_button {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.footer_settings_button:hover {
+    color: var(--neon-blue);
+    background: rgba(0, 243, 255, 0.05);
+    border-color: rgba(0, 243, 255, 0.2);
 }
 
 .status_dot {
