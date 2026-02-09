@@ -377,10 +377,7 @@ main .signal {
 
 /* Message Actions Popup */
 .message_actions_popup {
-    position: absolute;
-    bottom: 100%;
-    right: 0;
-    margin-bottom: 8px;
+    position: fixed;
     display: flex;
     flex-direction: column;
     min-width: 120px;
@@ -390,7 +387,7 @@ main .signal {
     border-radius: 8px;
     padding: 4px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-    z-index: 100;
+    z-index: 1000;
     animation: popupScale 0.15s ease-out;
 }
 
@@ -470,6 +467,149 @@ footer {
     display: flex;
     align-items: flex-end;
     gap: 8px;
+}
+
+.editing_preview {
+    max-width: 768px;
+    margin: 0 auto 8px;
+    background: rgba(241, 224, 90, 0.1);
+    border: 1px solid rgba(241, 224, 90, 0.3);
+    border-radius: 12px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    backdrop-filter: blur(8px);
+    animation: slideInUp 0.2s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.editing_info {
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.editing_label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #f1e05a;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.editing_text {
+    font-size: 13px;
+    color: #c9d1d9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cancel_edit_button {
+    background: transparent;
+    border: none;
+    color: #8b949e;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.cancel_edit_button:hover {
+    color: #f85149;
+    background: rgba(248, 81, 73, 0.1);
+}
+
+.editing_preview.reply_mode {
+    background: rgba(56, 139, 253, 0.1);
+    border-color: rgba(56, 139, 253, 0.3);
+}
+
+.editing_preview.reply_mode .editing_label {
+    color: #58a6ff;
+}
+
+/* Reply Reference inside message */
+.reply_reference {
+    display: flex;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    max-width: 100%;
+}
+
+.reply_reference:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.reply_line {
+    width: 2px;
+    background: #58a6ff;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.reply_content_preview {
+    overflow: hidden;
+}
+
+.reply_user {
+    display: block;
+    font-size: 11px;
+    font-weight: bold;
+    color: #58a6ff;
+    margin-bottom: 2px;
+}
+
+.reply_text {
+    font-size: 12px;
+    color: #8b949e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+}
+
+/* Highlight message effect */
+.highlight_message {
+    animation: pulseHighlight 2s ease-out;
+}
+
+@keyframes pulseHighlight {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(241, 224, 90, 0.4);
+    }
+
+    30% {
+        transform: scale(1.02);
+        box-shadow: 0 0 0 10px rgba(241, 224, 90, 0);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(241, 224, 90, 0.4);
+    }
 }
 
 .input_pill {

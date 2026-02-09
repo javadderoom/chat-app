@@ -31,6 +31,7 @@ const messages = pgTable('messages', {
   fileSize: integer('file_size'),           // File size in bytes
 
   isDeleted: boolean('is_deleted').default(false).notNull(),
+  replyToId: uuid('reply_to_id').references(() => messages.id),
   updatedAt: timestamp('updated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

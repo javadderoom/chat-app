@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Send, WifiOff, Terminal, Activity, Mic, Trash2, X, Square, Edit2, Check, MoreVertical } from 'lucide-react';
 import { useChatConnection } from './hooks/useChatConnection';
 import { useVoiceRecorder } from './hooks/useVoiceRecorder';
@@ -6,7 +7,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { ServerHelpModal } from './components/ServerHelpModal';
 import { FileUploadButton, UploadResult } from './components/FileUploadButton';
 import { VoiceMessagePlayer } from './components/VoiceMessagePlayer';
-import { UserSettings, ConnectionStatus } from './types';
+import { UserSettings, ConnectionStatus, Message } from './types';
 import { format } from 'date-fns';
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -32,6 +33,8 @@ const App: React.FC = () => {
   // Edit & Menu state
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number, right: number }>({ top: 0, right: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Save settings when changed
@@ -51,13 +54,14 @@ const App: React.FC = () => {
 
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() && !settings.isDemoMode) return;
 
     if (editingMessageId) {
       editMessage(editingMessageId, input);
       setEditingMessageId(null);
     } else {
-      sendMessage(input);
+      sendMessage(input, replyingToMessage?.id);
+      setReplyingToMessage(null);
     }
 
     setInput('');
@@ -79,7 +83,8 @@ const App: React.FC = () => {
       }
 
       const data: UploadResult = await response.json();
-      sendMediaMessage(data);
+      sendMediaMessage(data, replyingToMessage?.id);
+      setReplyingToMessage(null);
     } catch (error) {
       console.error('Voice upload failed:', error);
       setUploadError('Failed to send voice message');
@@ -111,6 +116,28 @@ const App: React.FC = () => {
     setInput('');
   };
 
+  const startReply = (msg: any) => {
+    setReplyingToMessage(msg);
+    setEditingMessageId(null);
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+    setActiveMenuId(null);
+  };
+
+  const cancelReply = () => {
+    setReplyingToMessage(null);
+  };
+
+  const scrollToMessage = (id: string) => {
+    const element = document.getElementById(`msg-${id}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('highlight_message');
+      setTimeout(() => element.classList.remove('highlight_message'), 2000);
+    }
+  };
+
   const handleDelete = (id: string) => {
     if (confirm('Are you sure you want to delete this message?')) {
       deleteMessage(id);
@@ -118,9 +145,20 @@ const App: React.FC = () => {
     setActiveMenuId(null);
   };
 
-  const handleMessageClick = (msg: any) => {
-    if (!msg.isMe || editingMessageId === msg.id) return;
-    setActiveMenuId(prev => prev === msg.id ? null : msg.id);
+  const handleMessageClick = (e: React.MouseEvent, msg: any) => {
+    // Allows anyone to reply (not just owner), but only owner can edit/delete
+    // if (!msg.isMe || editingMessageId === msg.id) return;
+
+    if (activeMenuId === msg.id) {
+      setActiveMenuId(null);
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.top,
+        right: window.innerWidth - rect.right
+      });
+      setActiveMenuId(msg.id);
+    }
   };
 
   // Close menu on scroll or click outside
@@ -212,6 +250,7 @@ const App: React.FC = () => {
 
           return (
             <div
+              id={`msg-${msg.id}`}
               key={msg.id}
               className={`message ${msg.isMe ? 'me' : 'them'}`}
             >
@@ -226,24 +265,62 @@ const App: React.FC = () => {
 
               <div
                 className={`text ${msg.isMe ? 'me' : 'them'} relative group cursor-pointer`}
-                onClick={() => handleMessageClick(msg)}
+                onClick={(e) => handleMessageClick(e, msg)}
               >
-                {msg.isMe && activeMenuId === msg.id && (
-                  <div className="message_actions_popup">
+                {activeMenuId === msg.id && createPortal(
+                  <div
+                    className="message_actions_popup"
+                    style={{
+                      top: `${menuPosition.top}px`,
+                      right: `${menuPosition.right}px`,
+                      transform: 'translateY(-100%) translateY(-8px)'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <button
-                      onClick={(e) => { e.stopPropagation(); startEditing(msg); setActiveMenuId(null); }}
+                      onClick={(e) => { e.stopPropagation(); startReply(msg); }}
                       className="menu_item"
                     >
-                      <Edit2 size={14} />
-                      <span>Edit</span>
+                      <Mic size={14} style={{ transform: 'rotate(180deg)' }} />
+                      <span>Reply</span>
                     </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); }}
-                      className="menu_item delete"
-                    >
-                      <Trash2 size={14} />
-                      <span>Delete</span>
-                    </button>
+
+                    {msg.isMe && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); startEditing(msg); setActiveMenuId(null); }}
+                          className="menu_item"
+                        >
+                          <Edit2 size={14} />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); }}
+                          className="menu_item delete"
+                        >
+                          <Trash2 size={14} />
+                          <span>Delete</span>
+                        </button>
+                      </>
+                    )}
+                  </div>,
+                  document.body
+                )}
+
+                {msg.replyToId && (
+                  <div
+                    className="reply_reference"
+                    onClick={(e) => { e.stopPropagation(); scrollToMessage(msg.replyToId!); }}
+                  >
+                    <div className="reply_line"></div>
+                    <div className="reply_content_preview">
+                      <span className="reply_user">
+                        {messages.find(m => m.id === msg.replyToId)?.sender || 'Message'}
+                      </span>
+                      <p className="reply_text">
+                        {messages.find(m => m.id === msg.replyToId)?.text || 'Original message not found'}
+                      </p>
+                    </div>
                   </div>
                 )}
                 {msg.messageType === 'image' && msg.mediaUrl && (
@@ -298,6 +375,33 @@ const App: React.FC = () => {
 
       {/* Input Area */}
       <footer>
+        {editingMessageId && (
+          <div className="editing_preview">
+            <div className="editing_info">
+              <span className="editing_label">Editing message</span>
+              <p className="editing_text">
+                {messages.find(m => m.id === editingMessageId)?.text}
+              </p>
+            </div>
+            <button onClick={cancelEdit} className="cancel_edit_button" title="Cancel">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {replyingToMessage && (
+          <div className="editing_preview reply_mode">
+            <div className="editing_info">
+              <span className="editing_label">Replying to {replyingToMessage.sender}</span>
+              <p className="editing_text">
+                {replyingToMessage.text}
+              </p>
+            </div>
+            <button onClick={cancelReply} className="cancel_edit_button" title="Cancel">
+              <X size={16} />
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSend} className="footer_form">
           <div className={`input_pill ${isRecording ? 'recording_active' : ''} ${editingMessageId ? 'editing_mode' : ''}`}>
             {isRecording ? (
@@ -324,7 +428,8 @@ const App: React.FC = () => {
                   disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
                   onUploadComplete={(data: UploadResult) => {
                     setUploadError(null);
-                    sendMediaMessage(data);
+                    sendMediaMessage(data, replyingToMessage?.id);
+                    setReplyingToMessage(null);
                   }}
                   onError={(error: string) => {
                     setUploadError(error);
@@ -338,23 +443,16 @@ const App: React.FC = () => {
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder={editingMessageId ? "Edit message..." : (status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting...")}
+                    placeholder={editingMessageId ? "Edit your message..." : replyingToMessage ? "Write a reply..." : (status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting...")}
                     disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
                     className="message_input"
                     onKeyDown={(e) => {
-                      if (e.key === 'Escape') cancelEdit();
+                      if (e.key === 'Escape') {
+                        cancelEdit();
+                        cancelReply();
+                      }
                     }}
                   />
-                  {editingMessageId && (
-                    <button
-                      type="button"
-                      onClick={cancelEdit}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-500"
-                      title="Cancel Edit"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
                 </div>
               </>
             )}

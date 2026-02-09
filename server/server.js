@@ -110,6 +110,7 @@ io.on('connection', (socket) => {
         mediaThumbnail: data.mediaThumbnail || null,
         fileName: data.fileName || null,
         fileSize: data.fileSize || null,
+        replyToId: data.replyToId || null, // Added support for replies
       };
 
       console.log('Insert values:', {
@@ -129,7 +130,12 @@ io.on('connection', (socket) => {
       });
 
       // Broadcast message to everyone (including sender for confirmation)
-      io.emit('message', { ...data, id: savedMessage.id, createdAt: savedMessage.createdAt });
+      io.emit('message', {
+        ...data,
+        id: savedMessage.id,
+        createdAt: savedMessage.createdAt,
+        replyToId: savedMessage.replyToId
+      });
     } catch (error) {
       console.error('Error saving message to database:', error);
       console.error('Message data:', { username, content: content.substring(0, 50) });

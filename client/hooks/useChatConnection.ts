@@ -14,6 +14,7 @@ interface DbMessage {
   mediaDuration?: number;
   fileName?: string;
   fileSize?: number;
+  replyToId?: string;
 }
 
 // Demo messages for simulation mode
@@ -38,7 +39,7 @@ export const useChatConnection = (settings: UserSettings) => {
     settingsRef.current = settings;
   }, [settings]);
 
-  const addMessage = useCallback((text: string, sender: string, isMe: boolean = false, isSystem: boolean = false) => {
+  const addMessage = useCallback((text: string, sender: string, isMe: boolean = false, isSystem: boolean = false, replyToId?: string) => {
     const id = Math.random().toString(36).substring(7);
     const newMessage: Message = {
       id,
@@ -46,7 +47,8 @@ export const useChatConnection = (settings: UserSettings) => {
       sender,
       timestamp: Date.now(),
       isMe,
-      isSystem
+      isSystem,
+      replyToId
     };
     setMessages(prev => [...prev, newMessage]);
     return id;
@@ -98,6 +100,7 @@ export const useChatConnection = (settings: UserSettings) => {
               mediaDuration: dbMsg.mediaDuration,
               fileName: dbMsg.fileName,
               fileSize: dbMsg.fileSize,
+              replyToId: dbMsg.replyToId,
             }));
 
           // Set loaded messages (this will replace any existing messages)
@@ -139,6 +142,7 @@ export const useChatConnection = (settings: UserSettings) => {
       mediaDuration?: number;
       fileName?: string;
       fileSize?: number;
+      replyToId?: string;
     }) => {
       const senderName = (data.user || data.username || '').trim().toLowerCase();
       const currentUserName = (settingsRef.current.username || '').trim().toLowerCase();
@@ -155,7 +159,8 @@ export const useChatConnection = (settings: UserSettings) => {
             return {
               ...msg,
               id: data.id!,
-              timestamp: data.createdAt ? new Date(data.createdAt).getTime() : msg.timestamp
+              timestamp: data.createdAt ? new Date(data.createdAt).getTime() : msg.timestamp,
+              replyToId: data.replyToId
             };
           }
           return msg;
@@ -199,6 +204,7 @@ export const useChatConnection = (settings: UserSettings) => {
           mediaDuration: data.mediaDuration,
           fileName: data.fileName,
           fileSize: data.fileSize,
+          replyToId: data.replyToId
         };
         return [...prev, newMessage];
       });
@@ -225,7 +231,7 @@ export const useChatConnection = (settings: UserSettings) => {
     };
   }, [settings.serverUrl, settings.isDemoMode, settings.username, addMessage]);
 
-  const sendMessage = useCallback((text: string) => {
+  const sendMessage = useCallback((text: string, replyToId?: string) => {
     // Validate and sanitize input
     if (!text || typeof text !== 'string') {
       console.warn('Invalid message text:', text);
@@ -245,7 +251,7 @@ export const useChatConnection = (settings: UserSettings) => {
     }
 
     // Add local message immediately for optimistic UI
-    const tempId = addMessage(trimmedText, username, true);
+    const tempId = addMessage(trimmedText, username, true, false, replyToId);
 
     if (settingsRef.current.isDemoMode) {
       // Simulate reply in demo mode
@@ -258,7 +264,8 @@ export const useChatConnection = (settings: UserSettings) => {
       const messageData = {
         user: String(username),
         text: String(trimmedText),
-        tempId: tempId
+        tempId: tempId,
+        replyToId: replyToId
       };
 
       // Double-check before sending
@@ -295,7 +302,7 @@ export const useChatConnection = (settings: UserSettings) => {
     fileName: string;
     fileSize: number;
     mediaDuration?: number;
-  }) => {
+  }, replyToId?: string) => {
     const username = settingsRef.current.username?.trim() || 'Anonymous';
 
     // Add local message immediately for optimistic UI
@@ -313,6 +320,7 @@ export const useChatConnection = (settings: UserSettings) => {
       fileName: uploadData.fileName,
       fileSize: uploadData.fileSize,
       mediaDuration: uploadData.mediaDuration,
+      replyToId: replyToId
     };
     setMessages(prev => [...prev, localMessage]);
 
@@ -333,6 +341,7 @@ export const useChatConnection = (settings: UserSettings) => {
         fileSize: uploadData.fileSize,
         mediaDuration: uploadData.mediaDuration,
         text: `[${uploadData.messageType.toUpperCase()}] ${uploadData.fileName}`,
+        replyToId: replyToId
       };
 
       console.log('Sending media message via Socket.io:', messageData);

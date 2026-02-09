@@ -15,6 +15,7 @@ export interface Message {
   // Edit/Delete fields
   updatedAt?: string | number;
   isDeleted?: boolean;
+  replyToId?: string;
 }
 
 export enum ConnectionStatus {
