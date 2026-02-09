@@ -142,6 +142,13 @@ io.on('connection', (socket) => {
 
       const [savedMessage] = await db.insert(messages).values(insertValues).returning();
 
+      // Update the chat's last message timestamp
+      if (insertValues.chatId) {
+        await db.update(chats)
+          .set({ lastMessageAt: new Date() })
+          .where(eq(chats.id, insertValues.chatId));
+      }
+
       console.log('Message saved to database:', {
         id: savedMessage.id,
         username: savedMessage.username,
@@ -362,7 +369,7 @@ app.get('/api/messages', async (req, res) => {
 // API endpoint to get all chats
 app.get('/api/chats', async (req, res) => {
   try {
-    const allChats = await db.select().from(chats).orderBy(desc(chats.createdAt));
+    const allChats = await db.select().from(chats).orderBy(desc(chats.lastMessageAt));
     res.json(allChats);
   } catch (error) {
     console.error('Error fetching chats:', error);

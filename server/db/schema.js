@@ -15,6 +15,7 @@ const chats = pgTable('chats', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
   description: text('description'),
+  lastMessageAt: timestamp('last_message_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

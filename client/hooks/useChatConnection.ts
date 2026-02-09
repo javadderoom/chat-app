@@ -228,6 +228,20 @@ export const useChatConnection = (settings: UserSettings) => {
           isForwarded: data.isForwarded,
           forwardedFrom: data.forwardedFrom
         };
+
+        // Move the chat to the top if we received a message for it
+        if (data.chatId) {
+          setChats(prevChats => {
+            const chatIndex = prevChats.findIndex(c => c.id === data.chatId);
+            if (chatIndex === -1) return prevChats;
+
+            const updatedChats = [...prevChats];
+            const [movedChat] = updatedChats.splice(chatIndex, 1);
+            movedChat.lastMessageAt = newMessage.timestamp;
+            return [movedChat, ...updatedChats];
+          });
+        }
+
         return [...prev, newMessage];
       });
     });
@@ -368,6 +382,19 @@ export const useChatConnection = (settings: UserSettings) => {
       console.log('Socket connected:', socket.connected);
       console.log('Socket ID:', socket.id);
       socket.emit('message', messageData);
+
+      // Optimistically move chat to top
+      if (activeChatId) {
+        setChats(prevChats => {
+          const chatIndex = prevChats.findIndex(c => c.id === activeChatId);
+          if (chatIndex === -1) return prevChats;
+
+          const updatedChats = [...prevChats];
+          const [movedChat] = updatedChats.splice(chatIndex, 1);
+          movedChat.lastMessageAt = Date.now();
+          return [movedChat, ...updatedChats];
+        });
+      }
     } else {
       // Fallback if disconnected
       console.warn('Cannot send message - socket not connected', {
@@ -437,6 +464,19 @@ export const useChatConnection = (settings: UserSettings) => {
 
       console.log('Sending media message via Socket.io:', messageData);
       socket.emit('message', messageData);
+
+      // Optimistically move chat to top
+      if (activeChatId) {
+        setChats(prevChats => {
+          const chatIndex = prevChats.findIndex(c => c.id === activeChatId);
+          if (chatIndex === -1) return prevChats;
+
+          const updatedChats = [...prevChats];
+          const [movedChat] = updatedChats.splice(chatIndex, 1);
+          movedChat.lastMessageAt = Date.now();
+          return [movedChat, ...updatedChats];
+        });
+      }
     } else {
       addMessage("Media not sent: Disconnected", "System", false, true);
     }
