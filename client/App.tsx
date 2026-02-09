@@ -66,36 +66,36 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="root_container flex flex-col h-screen bg-[#0d1117] overflow-hidden text-[#c9d1d9] font-mono selection:bg-[#238636] selection:text-white">
+    <div className="root_container">
 
       {/* Header */}
-      <header className="header flex items-center justify-between px-4 py-3 bg-[#161b22] border-b border-[#30363d] shadow-sm z-10">
-        <div className=" logo_block flex items-center gap-3">
+      <header className="header">
+        <div className="logo_block">
           <div className="logo p-2 bg-[#21262d] rounded border border-[#30363d]">
-            <Terminal size={20} className="text-green-500" />
+            <Terminal size={20} className="badge_green_text" />
           </div>
           <div>
-            <h1 className="logo_text font-bold text-white tracking-tight leading-none">BLACKOUT CHAT</h1>
-            <div className="status_in_logo flex items-center gap-2 text-[10px] uppercase font-bold tracking-wider mt-1">
-              <span className={`badge w-2 h-2 rounded-full ${status === ConnectionStatus.CONNECTED || settings.isDemoMode ? 'badge_green bg-green-500 animate-pulse' : 'badge_red bg-red-500'}`}></span>
+            <h1 className="logo_text">BLACKOUT CHAT</h1>
+            <div className="status_in_logo">
+              <span className={`badge ${status === ConnectionStatus.CONNECTED || settings.isDemoMode ? 'badge_green animate-pulse' : 'badge_red'}`}></span>
               <span className={getStatusColor()}>{getStatusText()}</span>
             </div>
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-4 text-xs text-[#8b949e]">
-          <div className="flex items-center gap-1">
+        <div className="header_stats">
+          <div className="stats_item">
             <Activity size={14} />
             <span>{settings.username}</span>
           </div>
-          <div className="px-2 py-1 bg-[#21262d] rounded border border-[#30363d]">
+          <div className="version_badge">
             v1.0.4-alpha
           </div>
         </div>
       </header>
 
       {/* Main Chat Area */}
-      <main className="flex-1 overflow-y-auto relative p-4 flex flex-col gap-4 scroll-smooth">
+      <main>
         {messages.length === 0 && (
           <div className="signal">
             <WifiOff size={48} className="mb-4" />
@@ -107,8 +107,8 @@ const App: React.FC = () => {
         {messages.map((msg) => {
           if (msg.isSystem) {
             return (
-              <div key={msg.id} className="status_message flex justify-center my-2">
-                <span className="text-[10px] uppercase tracking-wider text-[#8b949e] bg-[#161b22] px-3 py-1 rounded-full border border-[#30363d]">
+              <div key={msg.id} className="status_message">
+                <span>
                   {msg.text}
                 </span>
               </div>
@@ -118,9 +118,9 @@ const App: React.FC = () => {
           return (
             <div
               key={msg.id}
-              className={`message flex flex-col max-w-[85%] sm:max-w-[70%] ${msg.isMe ? 'me self-end items-end' : 'them self-start items-start'}`}
+              className={`message ${msg.isMe ? 'me' : 'them'}`}
             >
-              <div className={`info flex items-baseline gap-2 mb-1 px-1 ${msg.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+              <div className={`info ${msg.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                 <span className={`username text-xs font-bold ${msg.isMe ? 'text-green-400' : 'text-blue-400'}`}>
                   {msg.sender}
                 </span>
@@ -130,10 +130,7 @@ const App: React.FC = () => {
               </div>
 
               <div
-                className={`text px-4 py-3 rounded-lg text-sm leading-relaxed shadow-sm break-words border ${msg.isMe
-                  ? 'me bg-[#238636]/10 border-[#238636]/30 text-white rounded-tr-none'
-                  : 'them bg-[#21262d] border-[#30363d] text-[#c9d1d9] rounded-tl-none'
-                  }`}
+                className={`text ${msg.isMe ? 'me' : 'them'}`}
               >
                 {msg.text}
               </div>
@@ -144,44 +141,46 @@ const App: React.FC = () => {
       </main>
       {/* Upload Error Toast */}
       {uploadError && (
-        <div className="upload_error fixed bottom-24 left-1/2 -translate-x-1/2 bg-red-500/90 text-white px-4 py-2 rounded-lg text-sm z-50 animate-pulse">
+        <div className="upload_error">
           {uploadError}
-          <button onClick={() => setUploadError(null)} className="ml-2 font-bold">×</button>
+          <button onClick={() => setUploadError(null)}>×</button>
         </div>
       )}
 
       {/* Input Area */}
-      <footer className="bg-[#161b22] border-t border-[#30363d] p-3 sm:p-4 z-20">
-        <form onSubmit={handleSend} className="relative max-w-4xl mx-auto flex items-center gap-2">
-          {/* File Upload Button */}
-          <FileUploadButton
-            serverUrl={settings.serverUrl}
-            disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
-            onUploadComplete={(data: UploadResult) => {
-              setUploadError(null);
-              sendMediaMessage(data);
-            }}
-            onError={(error: string) => {
-              setUploadError(error);
-              setTimeout(() => setUploadError(null), 5000);
-            }}
-          />
-
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Enter transmission..." : "Connection lost..."}
+      <footer>
+        <form onSubmit={handleSend} className="footer_form">
+          <div className="input_pill">
+            {/* File Upload Button */}
+            <FileUploadButton
+              serverUrl={settings.serverUrl}
               disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
-              className="message_input w-full bg-[#0d1117] border border-[#30363d] text-white rounded-lg pl-4 pr-10 py-3 focus:outline-none focus:ring-1 focus:ring-[#238636] focus:border-[#238636] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              onUploadComplete={(data: UploadResult) => {
+                setUploadError(null);
+                sendMediaMessage(data);
+              }}
+              onError={(error: string) => {
+                setUploadError(error);
+                setTimeout(() => setUploadError(null), 5000);
+              }}
             />
+
+            <div className="input_wrapper">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting..."}
+                disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
+                className="message_input"
+              />
+            </div>
           </div>
 
           <button
             type="submit"
+            className="send_button"
             disabled={(!input.trim() || status !== ConnectionStatus.CONNECTED) && !settings.isDemoMode}
-            className="p-3 bg-[#238636] text-white rounded-lg hover:bg-[#2ea043] disabled:bg-[#21262d] disabled:text-[#8b949e] transition-colors shadow-lg shadow-green-900/20"
           >
             <Send size={20} />
           </button>

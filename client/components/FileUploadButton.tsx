@@ -139,7 +139,7 @@ export const FileUploadButton: React.FC<FileUploadButtonProps> = ({
                 type="button"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 disabled={disabled || isUploading}
-                className="upload_button p-3 bg-[#21262d] text-[#8b949e] rounded-lg hover:bg-[#30363d] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors border border-[#30363d]"
+                className="upload_button"
             >
                 {isUploading ? (
                     <Loader2 size={20} className="animate-spin" />
@@ -150,7 +150,7 @@ export const FileUploadButton: React.FC<FileUploadButtonProps> = ({
 
             {/* Upload progress indicator */}
             {isUploading && (
-                <div className="upload_progress absolute -top-8 left-1/2 -translate-x-1/2 bg-[#21262d] px-2 py-1 rounded text-xs text-[#8b949e] border border-[#30363d] whitespace-nowrap">
+                <div className="upload_progress absolute">
                     {uploadProgress}%
                 </div>
             )}
@@ -165,11 +165,11 @@ export const FileUploadButton: React.FC<FileUploadButtonProps> = ({
                     />
 
                     {/* Menu */}
-                    <div className="upload_menu absolute bottom-full left-0 mb-2 bg-[#161b22] border border-[#30363d] rounded-lg shadow-xl z-40 overflow-hidden min-w-[140px]">
+                    <div className="upload_menu absolute z-40">
                         <button
                             type="button"
                             onClick={() => handleFileSelect('image')}
-                            className="upload_option flex items-center gap-3 w-full px-4 py-3 text-left text-sm text-[#c9d1d9] hover:bg-[#21262d] transition-colors"
+                            className="upload_option"
                         >
                             <Image size={18} className="text-green-400" />
                             <span>Image</span>
@@ -177,7 +177,7 @@ export const FileUploadButton: React.FC<FileUploadButtonProps> = ({
                         <button
                             type="button"
                             onClick={() => handleFileSelect('video')}
-                            className="upload_option flex items-center gap-3 w-full px-4 py-3 text-left text-sm text-[#c9d1d9] hover:bg-[#21262d] transition-colors border-t border-[#30363d]"
+                            className="upload_option"
                         >
                             <Video size={18} className="text-blue-400" />
                             <span>Video</span>
@@ -185,7 +185,7 @@ export const FileUploadButton: React.FC<FileUploadButtonProps> = ({
                         <button
                             type="button"
                             onClick={() => handleFileSelect('audio')}
-                            className="upload_option flex items-center gap-3 w-full px-4 py-3 text-left text-sm text-[#c9d1d9] hover:bg-[#21262d] transition-colors border-t border-[#30363d]"
+                            className="upload_option"
                         >
                             <Music size={18} className="text-purple-400" />
                             <span>Audio</span>
