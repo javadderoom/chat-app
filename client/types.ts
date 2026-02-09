@@ -16,6 +16,14 @@ export interface Message {
   updatedAt?: string | number;
   isDeleted?: boolean;
   replyToId?: string;
+  chatId?: string;
+}
+
+export interface Chat {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string | number;
 }
 
 export enum ConnectionStatus {

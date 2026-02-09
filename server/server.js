@@ -4,8 +4,8 @@ const path = require('path');
 const { Server } = require("socket.io");
 const cors = require('cors');
 const { db, pool } = require('./db/index');
-const { messages } = require('./db/schema');
-const { desc, eq, ne } = require('drizzle-orm');
+const { messages, chats, users } = require('./db/schema');
+const { desc, eq, ne, and } = require('drizzle-orm');
 const uploadRoutes = require('./routes/upload');
 
 const app = express();
@@ -28,6 +28,23 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+
+  // Handle joining a specific chat room
+  socket.on('joinChat', (chatId) => {
+    if (chatId) {
+      // Leave all other chat rooms first
+      // Copy rooms to array to avoid mutation during iteration
+      const currentRooms = Array.from(socket.rooms);
+      for (const room of currentRooms) {
+        if (room !== socket.id) {
+          socket.leave(room);
+        }
+      }
+
+      socket.join(chatId);
+      console.log(`Socket ${socket.id} joined room: ${chatId}`);
+    }
+  });
 
   socket.on('message', async (data) => {
     console.log('Received message event from socket:', socket.id);
@@ -110,7 +127,8 @@ io.on('connection', (socket) => {
         mediaThumbnail: data.mediaThumbnail || null,
         fileName: data.fileName || null,
         fileSize: data.fileSize || null,
-        replyToId: data.replyToId || null, // Added support for replies
+        replyToId: data.replyToId || null,
+        chatId: data.chatId || null, // Link to chat room
       };
 
       console.log('Insert values:', {
@@ -129,18 +147,34 @@ io.on('connection', (socket) => {
         hasMedia: !!savedMessage.mediaUrl,
       });
 
-      // Broadcast message to everyone (including sender for confirmation)
-      io.emit('message', {
-        ...data,
-        id: savedMessage.id,
-        createdAt: savedMessage.createdAt,
-        replyToId: savedMessage.replyToId
-      });
+      // Broadcast message to everyone in the specific chat
+      if (insertValues.chatId) {
+        io.to(insertValues.chatId).emit('message', {
+          ...data,
+          id: savedMessage.id,
+          chatId: savedMessage.chatId, // Explicitly include database chatId
+          createdAt: savedMessage.createdAt,
+          replyToId: savedMessage.replyToId
+        });
+      } else {
+        // Fallback to global broadcast (legacy/system messages)
+        io.emit('message', {
+          ...data,
+          id: savedMessage.id,
+          chatId: null,
+          createdAt: savedMessage.createdAt,
+          replyToId: savedMessage.replyToId
+        });
+      }
     } catch (error) {
       console.error('Error saving message to database:', error);
       console.error('Message data:', { username, content: content.substring(0, 50) });
-      // Still broadcast even if database save fails
-      io.emit('message', data);
+      // Still broadcast even if database save fails - but ONLY to the specific room
+      if (data.chatId) {
+        io.to(data.chatId).emit('message', data);
+      } else {
+        io.emit('message', data);
+      }
     }
   });
 
@@ -229,6 +263,24 @@ io.on('connection', (socket) => {
     console.log('--- DATABASE DELETE END ---');
   });
 
+  // Handle Chat Creation
+  socket.on('createChat', async (data) => {
+    const { name, description } = data;
+    if (!name) return;
+
+    try {
+      const [newChat] = await db.insert(chats).values({
+        name,
+        description: description || null
+      }).returning();
+
+      console.log('New chat created:', newChat.id);
+      io.emit('chatCreated', newChat);
+    } catch (error) {
+      console.error('Error creating chat:', error);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('User disconnected');
   });
@@ -237,10 +289,19 @@ io.on('connection', (socket) => {
 // Example API endpoint to get recent messages
 app.get('/api/messages', async (req, res) => {
   try {
-    const recentMessages = await db.select().from(messages)
-      .where(eq(messages.isDeleted, false))
+    const { chatId } = req.query;
+
+    let whereClause = eq(messages.isDeleted, false);
+    if (chatId) {
+      whereClause = and(eq(messages.isDeleted, false), eq(messages.chatId, chatId));
+    }
+
+    const query = db.select().from(messages).where(whereClause);
+
+    const recentMessages = await query
       .orderBy(desc(messages.createdAt))
       .limit(50);
+    console.log(recentMessages)
     res.json(recentMessages);
   } catch (error) {
     console.error('Error fetching messages:', error.message);
@@ -255,6 +316,17 @@ app.get('/api/messages', async (req, res) => {
     } else {
       res.status(500).json({ error: 'Failed to fetch messages' });
     }
+  }
+});
+
+// API endpoint to get all chats
+app.get('/api/chats', async (req, res) => {
+  try {
+    const allChats = await db.select().from(chats).orderBy(desc(chats.createdAt));
+    res.json(allChats);
+  } catch (error) {
+    console.error('Error fetching chats:', error);
+    res.status(500).json({ error: 'Failed to fetch chats' });
   }
 });
 
@@ -305,6 +377,20 @@ server.listen(PORT, '0.0.0.0', async () => {
   if (!dbConnected) {
     console.error('Failed to establish database connection. Exiting...');
     process.exit(1);
+  }
+
+  // Ensure default Global chat exists
+  try {
+    const existingChats = await db.select().from(chats).limit(1);
+    if (existingChats.length === 0) {
+      console.log('Creating default Global chat...');
+      await db.insert(chats).values({
+        name: 'Global',
+        description: 'The combined frequency of all transmissions.'
+      });
+    }
+  } catch (error) {
+    console.warn('Could not create default chat. It might already exist or table not ready.', error.message);
   }
 });
 

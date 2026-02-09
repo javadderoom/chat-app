@@ -10,9 +10,18 @@ const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Chats table for multiple rooms
+const chats = pgTable('chats', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Messages table with multimedia support
 const messages = pgTable('messages', {
   id: uuid('id').defaultRandom().primaryKey(),
+  chatId: uuid('chat_id').references(() => chats.id), // Link to chat room
   userId: uuid('user_id').references(() => users.id),
   username: varchar('username', { length: 100 }).notNull(),
 
@@ -36,5 +45,9 @@ const messages = pgTable('messages', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-module.exports = { users, messages, messageTypeEnum };
-
+module.exports = {
+  users,
+  chats,
+  messages,
+  messageTypeEnum,
+};

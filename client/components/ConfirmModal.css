@@ -1,0 +1,133 @@
+.modal_overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.modal_content {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 400px;
+    padding: 24px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    margin: 16px;
+}
+
+.modal_header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.modal_title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.modal_title h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #f0f6fc;
+}
+
+.modal_close_btn {
+    background: transparent;
+    border: none;
+    color: #8b949e;
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.2s;
+}
+
+.modal_close_btn:hover {
+    color: #f0f6fc;
+}
+
+.modal_body p {
+    color: #8b949e;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 24px 0;
+}
+
+.modal_footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.btn_secondary {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn_secondary:hover {
+    background: #30363d;
+}
+
+.btn_primary {
+    background: #238636;
+    border: 1px solid rgba(240, 246, 252, 0.1);
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn_primary:hover {
+    background: #2ea043;
+}
+
+.btn_primary.danger {
+    background: #a31c25;
+}
+
+.btn_primary.danger:hover {
+    background: #f85149;
+}
+
+.animate-scale {
+    animation: modalScale 0.2s ease-out;
+}
+
+@keyframes modalScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.text-red-500 {
+    color: #f85149;
+}
+
+.text-blue-500 {
+    color: #58a6ff;
+}

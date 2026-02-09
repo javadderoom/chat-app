@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Message, ConnectionStatus, UserSettings } from '../types';
+import { Message, ConnectionStatus, UserSettings, Chat } from '../types';
 
 // Database message format from API
 interface DbMessage {
@@ -15,6 +15,7 @@ interface DbMessage {
   fileName?: string;
   fileSize?: number;
   replyToId?: string;
+  chatId?: string;
 }
 
 // Demo messages for simulation mode
@@ -30,6 +31,8 @@ const DEMO_RESPONSES = [
 
 export const useChatConnection = (settings: UserSettings) => {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
   const [socket, setSocket] = useState<Socket | null>(null);
 
@@ -38,6 +41,30 @@ export const useChatConnection = (settings: UserSettings) => {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  // Fetch all available chats
+  const fetchChats = useCallback(async () => {
+    try {
+      const response = await fetch(`${settings.serverUrl}/api/chats`);
+      if (response.ok) {
+        const data: Chat[] = await response.json();
+        setChats(data);
+
+        // Auto-select first chat (e.g. Global) if none selected
+        if (data.length > 0 && !activeChatId) {
+          setActiveChatId(data[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching chats:', error);
+    }
+  }, [settings.serverUrl, activeChatId]);
+
+  useEffect(() => {
+    if (status === ConnectionStatus.CONNECTED) {
+      fetchChats();
+    }
+  }, [status, fetchChats]);
 
   const addMessage = useCallback((text: string, sender: string, isMe: boolean = false, isSystem: boolean = false, replyToId?: string) => {
     const id = Math.random().toString(36).substring(7);
@@ -75,44 +102,18 @@ export const useChatConnection = (settings: UserSettings) => {
       forceNew: true // Ensure a fresh connection instance
     });
 
-    newSocket.on('connect', async () => {
+    newSocket.on('connect', () => {
       console.log('Socket.io connected!', { socketId: newSocket.id, serverUrl: settings.serverUrl });
       setStatus(ConnectionStatus.CONNECTED);
 
-      // Load previous messages from database first
-      try {
-        const response = await fetch(`${settings.serverUrl}/api/messages`);
-        if (response.ok) {
-          const dbMessages: DbMessage[] = await response.json();
-          // Convert database messages to frontend format
-          const loadedMessages: Message[] = dbMessages
-            .reverse() // Reverse to show oldest first (API returns newest first)
-            .map((dbMsg) => ({
-              id: dbMsg.id,
-              text: dbMsg.content,
-              sender: dbMsg.username,
-              timestamp: new Date(dbMsg.createdAt).getTime(),
-              isMe: dbMsg.username === settings.username,
-              isSystem: false,
-              messageType: dbMsg.messageType as any,
-              mediaUrl: dbMsg.mediaUrl,
-              mediaType: dbMsg.mediaType,
-              mediaDuration: dbMsg.mediaDuration,
-              fileName: dbMsg.fileName,
-              fileSize: dbMsg.fileSize,
-              replyToId: dbMsg.replyToId,
-            }));
+      // Show connection message
+      addMessage(`Connected to ${settings.serverUrl}`, "System", false, true);
 
-          // Set loaded messages (this will replace any existing messages)
-          setMessages(loadedMessages);
-        }
-      } catch (error) {
-        console.error('Error loading messages:', error);
-        // Continue without loaded messages
+      // Join current active chat if available
+      if (activeChatIdRef.current) {
+        newSocket.emit('joinChat', activeChatIdRef.current);
       }
 
-      // Show connection message after loading history
-      addMessage(`Connected to ${settings.serverUrl}`, "System", false, true);
       // Join a default room or announce presence
       newSocket.emit('join', settings.username);
     });
@@ -143,13 +144,20 @@ export const useChatConnection = (settings: UserSettings) => {
       fileName?: string;
       fileSize?: number;
       replyToId?: string;
+      chatId?: string;
     }) => {
       const senderName = (data.user || data.username || '').trim().toLowerCase();
       const currentUserName = (settingsRef.current.username || '').trim().toLowerCase();
       const isFromMe = senderName === currentUserName;
 
       // Robust synchronization: check isFromMe OR tempId match
-      const isOptimisticMatch = data.tempId ? true : false; // We'll check the actual ID inside the map
+      const isOptimisticMatch = data.tempId ? true : false;
+
+      // Client-side isolation check: ignore synchronization for other chats
+      if (data.chatId && activeChatIdRef.current && data.chatId !== activeChatIdRef.current) {
+        console.log('Ignored message confirm for different chat:', data.chatId);
+        return;
+      }
 
       if (data.tempId || isFromMe) {
         let matched = false;
@@ -190,6 +198,12 @@ export const useChatConnection = (settings: UserSettings) => {
         }
 
         // Add new message from other users
+        // Client-side isolation check: ignore messages not for this chat
+        if (data.chatId && activeChatIdRef.current && data.chatId !== activeChatIdRef.current) {
+          console.log('Ignored message for different chat:', data.chatId);
+          return prev;
+        }
+
         const newMessage: Message = {
           id: data.id || Math.random().toString(36).substring(7), // Use server ID if available
           text: data.text,
@@ -204,7 +218,8 @@ export const useChatConnection = (settings: UserSettings) => {
           mediaDuration: data.mediaDuration,
           fileName: data.fileName,
           fileSize: data.fileSize,
-          replyToId: data.replyToId
+          replyToId: data.replyToId,
+          chatId: data.chatId
         };
         return [...prev, newMessage];
       });
@@ -223,6 +238,10 @@ export const useChatConnection = (settings: UserSettings) => {
       setMessages(prev => prev.filter(msg => msg.id !== data.id));
     });
 
+    newSocket.on('chatCreated', (newChat: Chat) => {
+      setChats(prev => [newChat, ...prev]);
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -230,6 +249,57 @@ export const useChatConnection = (settings: UserSettings) => {
       newSocket.disconnect();
     };
   }, [settings.serverUrl, settings.isDemoMode, settings.username, addMessage]);
+
+  // Handle active chat changes (Fetch history & Join room)
+  const activeChatIdRef = useRef(activeChatId);
+  useEffect(() => {
+    activeChatIdRef.current = activeChatId;
+
+    if (status !== ConnectionStatus.CONNECTED || settings.isDemoMode) return;
+
+    const loadHistory = async () => {
+      if (!activeChatId) return;
+
+      // Clear current messages to prevent bleed-over
+      setMessages([]);
+
+      try {
+        console.log(`Loading history for chat: ${activeChatId}`);
+        const response = await fetch(`${settings.serverUrl}/api/messages?chatId=${activeChatId}`);
+        if (response.ok) {
+          const dbMessages: DbMessage[] = await response.json();
+          const loadedMessages: Message[] = dbMessages
+            .reverse()
+            .map((dbMsg) => ({
+              id: dbMsg.id,
+              text: dbMsg.content,
+              sender: dbMsg.username,
+              timestamp: new Date(dbMsg.createdAt).getTime(),
+              isMe: dbMsg.username === settings.username,
+              isSystem: false,
+              messageType: dbMsg.messageType as any,
+              mediaUrl: dbMsg.mediaUrl,
+              mediaType: dbMsg.mediaType,
+              mediaDuration: dbMsg.mediaDuration,
+              fileName: dbMsg.fileName,
+              fileSize: dbMsg.fileSize,
+              replyToId: dbMsg.replyToId,
+              chatId: dbMsg.chatId,
+            }));
+          setMessages(loadedMessages);
+        }
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      }
+    };
+
+    loadHistory();
+
+    // Re-join the correct socket.io room
+    if (socket && socket.connected && activeChatId) {
+      socket.emit('joinChat', activeChatId);
+    }
+  }, [activeChatId, status, socket, settings.serverUrl, settings.isDemoMode, settings.username]);
 
   const sendMessage = useCallback((text: string, replyToId?: string) => {
     // Validate and sanitize input
@@ -265,7 +335,8 @@ export const useChatConnection = (settings: UserSettings) => {
         user: String(username),
         text: String(trimmedText),
         tempId: tempId,
-        replyToId: replyToId
+        replyToId: replyToId,
+        chatId: activeChatId || undefined
       };
 
       // Double-check before sending
@@ -288,7 +359,7 @@ export const useChatConnection = (settings: UserSettings) => {
       });
       addMessage("Message not sent: Disconnected", "System", false, true);
     }
-  }, [socket, addMessage, status]);
+  }, [socket, addMessage, status, activeChatId]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
@@ -341,7 +412,8 @@ export const useChatConnection = (settings: UserSettings) => {
         fileSize: uploadData.fileSize,
         mediaDuration: uploadData.mediaDuration,
         text: `[${uploadData.messageType.toUpperCase()}] ${uploadData.fileName}`,
-        replyToId: replyToId
+        replyToId: replyToId,
+        chatId: activeChatId || undefined
       };
 
       console.log('Sending media message via Socket.io:', messageData);
@@ -349,7 +421,7 @@ export const useChatConnection = (settings: UserSettings) => {
     } else {
       addMessage("Media not sent: Disconnected", "System", false, true);
     }
-  }, [socket, addMessage]);
+  }, [socket, addMessage, activeChatId]);
 
   const editMessage = useCallback((id: string, newText: string) => {
     if (!socket || !socket.connected) return;
@@ -373,13 +445,23 @@ export const useChatConnection = (settings: UserSettings) => {
     socket.emit('deleteMessage', { id });
   }, [socket]);
 
+  const createChat = useCallback((name: string, description?: string) => {
+    if (!socket || !socket.connected) return;
+    socket.emit('createChat', { name, description });
+  }, [socket]);
+
   return {
     messages,
+    chats,
+    activeChatId,
+    setActiveChatId,
     status,
     sendMessage,
     sendMediaMessage,
     clearMessages,
     editMessage,
-    deleteMessage
+    deleteMessage,
+    createChat,
+    fetchChats
   };
 };
