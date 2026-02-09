@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, WifiOff, Activity, Mic, Trash2, X, Square, Edit2, Check, Menu } from 'lucide-react';
+import { Send, WifiOff, Activity, Mic, Trash2, X, Square, Edit2, Check, Menu, Share2, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
@@ -9,6 +9,7 @@ import { UserSettings, ConnectionStatus, Message } from '../types';
 import './ChatView.css';
 
 import { ConfirmModal } from './ConfirmModal';
+import { ForwardModal } from './ForwardModal';
 
 const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉'];
 
@@ -31,6 +32,8 @@ interface ChatViewProps {
     showSidebar: boolean;
     setShowServerHelp: (show: boolean) => void;
     toggleReaction: (messageId: string, emoji: string) => void;
+    forwardMessage: (message: Message, targetChatId: string) => void;
+    chats: Chat[];
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -45,35 +48,67 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setShowSidebar,
     showSidebar,
     setShowServerHelp,
-    toggleReaction
+    toggleReaction,
+    forwardMessage,
+    chats
 }) => {
     const [input, setInput] = useState('');
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
     const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
+    const [pendingUpload, setPendingUpload] = useState<UploadResult | null>(null);
     const [menuPosition, setMenuPosition] = useState<{ top: number, right: number }>({ top: 0, right: 0 });
     const [messageToDelete, setMessageToDelete] = useState<string | null>(null);
+    const [messageToForward, setMessageToForward] = useState<Message | null>(null);
+    const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const prevMessagesLengthRef = useRef(messages.length);
+
+    const truncateText = (text: string, length: number = 20) => {
+        if (!text) return '';
+        return text.length > length ? text.substring(0, length) + '...' : text;
+    };
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        // Only scroll if a new message was added (length increased)
+        if (messages.length > prevMessagesLengthRef.current) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+        prevMessagesLengthRef.current = messages.length;
     }, [messages]);
 
     const handleSend = (e?: React.FormEvent) => {
         e?.preventDefault();
-        if (!input.trim() && !settings.isDemoMode) return;
+        if (!input.trim() && !pendingUpload && !settings.isDemoMode) return;
 
         if (editingMessageId) {
             editMessage(editingMessageId, input);
             setEditingMessageId(null);
+            setInput('');
+        } else if (pendingUpload) {
+            sendMediaMessage(pendingUpload, replyingToMessage?.id, input.trim() || undefined);
+            setPendingUpload(null);
+            setReplyingToMessage(null);
+            setInput('');
         } else {
             sendMessage(input, replyingToMessage?.id);
             setReplyingToMessage(null);
+            setInput('');
         }
-        setInput('');
+    };
+
+    const handleUploadComplete = (result: UploadResult) => {
+        setPendingUpload(result);
+        setUploadError(null);
+        // Focus the input so user can type a caption
+        inputRef.current?.focus();
+    };
+
+    const cancelPendingUpload = () => {
+        setPendingUpload(null);
     };
 
     const handleVoiceUpload = async (file: File) => {
@@ -88,8 +123,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             if (!response.ok) throw new Error(`Upload failed: ${response.statusText}`);
 
             const data: UploadResult = await response.json();
-            sendMediaMessage(data, replyingToMessage?.id);
-            setReplyingToMessage(null);
+            handleUploadComplete(data);
         } catch (error) {
             console.error('Voice upload failed:', error);
             setUploadError('Failed to send voice message');
@@ -145,6 +179,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
         if (messageToDelete) {
             deleteMessage(messageToDelete);
             setMessageToDelete(null);
+        }
+    };
+
+    const handleForward = (msg: Message) => {
+        setMessageToForward(msg);
+        setIsForwardModalOpen(true);
+        setActiveMenuId(null);
+    };
+
+    const confirmForward = (targetChatId: string) => {
+        if (messageToForward) {
+            forwardMessage(messageToForward, targetChatId);
+            setIsForwardModalOpen(false);
+            setMessageToForward(null);
         }
     };
 
@@ -256,6 +304,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                                 <span>Reply</span>
                                             </button>
 
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleForward(msg); }}
+                                                className="menu_item"
+                                            >
+                                                <Share2 size={14} />
+                                                <span>Forward</span>
+                                            </button>
+
                                             {msg.isMe && (
                                                 <>
                                                     <button
@@ -279,6 +335,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                     document.body
                                 )}
 
+                                {msg.isForwarded && (
+                                    <div className="forwarded_label">
+                                        <Share2 size={10} />
+                                        <span>Forwarded from {msg.forwardedFrom}</span>
+                                    </div>
+                                )}
+
                                 {msg.replyToId && (
                                     <div
                                         className="reply_reference"
@@ -290,7 +353,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                                 {messages.find(m => m.id === msg.replyToId)?.sender || 'Message'}
                                             </span>
                                             <p className="reply_text">
-                                                {messages.find(m => m.id === msg.replyToId)?.text || 'Original message not found'}
+                                                {truncateText(messages.find(m => m.id === msg.replyToId)?.text || 'Original message not found')}
                                             </p>
                                         </div>
                                     </div>
@@ -318,6 +381,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                                 {(msg.messageType === 'audio' || msg.messageType === 'voice') && msg.mediaUrl && (
                                     <div className="media_content">
+                                        {msg.fileName && (
+                                            <div className="media_filename">
+                                                {truncateText(msg.fileName)}
+                                            </div>
+                                        )}
                                         <VoiceMessagePlayer
                                             src={msg.mediaUrl}
                                             duration={msg.mediaDuration}
@@ -325,7 +393,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                     </div>
                                 )}
 
-                                {!msg.mediaUrl && msg.text && (
+                                {(msg.text && (!msg.mediaUrl || (!msg.text.startsWith('[IMAGE]') && !msg.text.startsWith('[VIDEO]') && !msg.text.startsWith('[AUDIO]') && !msg.text.startsWith('[FILE]')))) && (
                                     <div className="message_text_content">
                                         {msg.text}
                                         {msg.updatedAt && <span className="text-[10px] text-gray-500 ml-2 italic">(edited)</span>}
@@ -365,12 +433,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
             )}
 
             <footer>
+                {pendingUpload && (
+                    <div className="editing_preview media_mode">
+                        <div className="editing_info">
+                            <span className="editing_label">File selected</span>
+                            <div className="flex items-center gap-2">
+                                {pendingUpload.messageType === 'image' && <ImageIcon size={14} className="text-green-400" />}
+                                {pendingUpload.messageType === 'video' && <VideoIcon size={14} className="text-blue-400" />}
+                                {pendingUpload.messageType === 'audio' && <MusicIcon size={14} className="text-purple-400" />}
+                                <p className="editing_text">{pendingUpload.fileName}</p>
+                            </div>
+                        </div>
+                        <button onClick={cancelPendingUpload} className="cancel_edit_button" title="Remove file">
+                            <X size={16} />
+                        </button>
+                    </div>
+                )}
+
                 {editingMessageId && (
                     <div className="editing_preview">
                         <div className="editing_info">
                             <span className="editing_label">Editing message</span>
                             <p className="editing_text">
-                                {messages.find(m => m.id === editingMessageId)?.text}
+                                {truncateText(messages.find(m => m.id === editingMessageId)?.text || '')}
                             </p>
                         </div>
                         <button onClick={cancelEdit} className="cancel_edit_button" title="Cancel">
@@ -384,7 +469,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         <div className="editing_info">
                             <span className="editing_label">Replying to {replyingToMessage.sender}</span>
                             <p className="editing_text">
-                                {replyingToMessage.text}
+                                {truncateText(replyingToMessage.text)}
                             </p>
                         </div>
                         <button onClick={cancelReply} className="cancel_edit_button" title="Cancel">
@@ -415,11 +500,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                 <FileUploadButton
                                     serverUrl={settings.serverUrl}
                                     disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
-                                    onUploadComplete={(data: UploadResult) => {
-                                        setUploadError(null);
-                                        sendMediaMessage(data, replyingToMessage?.id);
-                                        setReplyingToMessage(null);
-                                    }}
+                                    onUploadComplete={handleUploadComplete}
                                     onError={(error: string) => {
                                         setUploadError(error);
                                         setTimeout(() => setUploadError(null), 5000);
@@ -456,7 +537,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             <Square size={16} fill="white" />
                         </button>
                     ) : (
-                        input.trim() ? (
+                        (input.trim() || pendingUpload) ? (
                             <button
                                 type="submit"
                                 className={`send_button ${editingMessageId ? 'editing' : ''}`}
@@ -487,6 +568,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 confirmText="Delete"
                 cancelText="Abort"
                 type="danger"
+            />
+
+            <ForwardModal
+                isOpen={isForwardModalOpen}
+                chats={chats}
+                currentChatId={activeChat?.id || null}
+                onForward={confirmForward}
+                onCancel={() => setIsForwardModalOpen(false)}
             />
         </div>
     );

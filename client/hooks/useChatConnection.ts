@@ -16,6 +16,9 @@ interface DbMessage {
   fileSize?: number;
   replyToId?: string;
   chatId?: string;
+  reactions?: Record<string, string[]>;
+  isForwarded?: boolean;
+  forwardedFrom?: string;
 }
 
 // Demo messages for simulation mode
@@ -145,6 +148,8 @@ export const useChatConnection = (settings: UserSettings) => {
       fileSize?: number;
       replyToId?: string;
       chatId?: string;
+      isForwarded?: boolean;
+      forwardedFrom?: string;
     }) => {
       const senderName = (data.user || data.username || '').trim().toLowerCase();
       const currentUserName = (settingsRef.current.username || '').trim().toLowerCase();
@@ -219,7 +224,9 @@ export const useChatConnection = (settings: UserSettings) => {
           fileName: data.fileName,
           fileSize: data.fileSize,
           replyToId: data.replyToId,
-          chatId: data.chatId
+          chatId: data.chatId,
+          isForwarded: data.isForwarded,
+          forwardedFrom: data.forwardedFrom
         };
         return [...prev, newMessage];
       });
@@ -293,6 +300,9 @@ export const useChatConnection = (settings: UserSettings) => {
               fileSize: dbMsg.fileSize,
               replyToId: dbMsg.replyToId,
               chatId: dbMsg.chatId,
+              reactions: dbMsg.reactions || {},
+              isForwarded: dbMsg.isForwarded,
+              forwardedFrom: dbMsg.forwardedFrom
             }));
           setMessages(loadedMessages);
         }
@@ -381,14 +391,15 @@ export const useChatConnection = (settings: UserSettings) => {
     fileName: string;
     fileSize: number;
     mediaDuration?: number;
-  }, replyToId?: string) => {
+  }, replyToId?: string, caption?: string) => {
     const username = settingsRef.current.username?.trim() || 'Anonymous';
+    const messageText = caption || `[${uploadData.messageType.toUpperCase()}] ${uploadData.fileName}`;
 
     // Add local message immediately for optimistic UI
     const tempId = Math.random().toString(36).substring(7);
     const localMessage: Message = {
       id: tempId,
-      text: `[${uploadData.messageType.toUpperCase()}] ${uploadData.fileName}`,
+      text: messageText,
       sender: username,
       timestamp: Date.now(),
       isMe: true,
@@ -419,7 +430,7 @@ export const useChatConnection = (settings: UserSettings) => {
         fileName: uploadData.fileName,
         fileSize: uploadData.fileSize,
         mediaDuration: uploadData.mediaDuration,
-        text: `[${uploadData.messageType.toUpperCase()}] ${uploadData.fileName}`,
+        text: messageText,
         replyToId: replyToId,
         chatId: activeChatId || undefined
       };
@@ -484,6 +495,29 @@ export const useChatConnection = (settings: UserSettings) => {
     socket.emit('toggleReaction', { messageId, emoji, username });
   }, [socket]);
 
+  const forwardMessage = useCallback((message: Message, targetChatId: string) => {
+    if (!socket || !socket.connected) return;
+    const username = settingsRef.current.username;
+
+    const forwardData = {
+      user: username,
+      username: username,
+      text: message.text,
+      messageType: message.messageType,
+      mediaUrl: message.mediaUrl,
+      mediaType: message.mediaType,
+      fileName: message.fileName,
+      fileSize: message.fileSize,
+      mediaDuration: message.mediaDuration,
+      chatId: targetChatId,
+      isForwarded: true,
+      forwardedFrom: message.sender
+    };
+
+    console.log('Forwarding message:', forwardData);
+    socket.emit('message', forwardData);
+  }, [socket]);
+
   return {
     messages,
     chats,
@@ -497,6 +531,7 @@ export const useChatConnection = (settings: UserSettings) => {
     deleteMessage,
     createChat,
     fetchChats,
-    toggleReaction
+    toggleReaction,
+    forwardMessage
   };
 };

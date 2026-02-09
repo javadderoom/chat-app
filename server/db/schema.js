@@ -42,6 +42,8 @@ const messages = pgTable('messages', {
   isDeleted: boolean('is_deleted').default(false).notNull(),
   replyToId: uuid('reply_to_id').references(() => messages.id),
   reactions: jsonb('reactions').default({}).notNull(),
+  isForwarded: boolean('is_forwarded').default(false).notNull(),
+  forwardedFrom: varchar('forwarded_from', { length: 100 }),
   updatedAt: timestamp('updated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

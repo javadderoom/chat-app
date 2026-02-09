@@ -129,6 +129,8 @@ io.on('connection', (socket) => {
         fileSize: data.fileSize || null,
         replyToId: data.replyToId || null,
         chatId: data.chatId || null, // Link to chat room
+        isForwarded: data.isForwarded || false,
+        forwardedFrom: data.forwardedFrom || null,
       };
 
       console.log('Insert values:', {
@@ -154,7 +156,9 @@ io.on('connection', (socket) => {
           id: savedMessage.id,
           chatId: savedMessage.chatId, // Explicitly include database chatId
           createdAt: savedMessage.createdAt,
-          replyToId: savedMessage.replyToId
+          replyToId: savedMessage.replyToId,
+          isForwarded: savedMessage.isForwarded,
+          forwardedFrom: savedMessage.forwardedFrom
         });
       } else {
         // Fallback to global broadcast (legacy/system messages)

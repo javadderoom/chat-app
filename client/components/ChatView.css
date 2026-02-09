@@ -137,6 +137,18 @@ main .signal {
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     word-break: break-word;
     border: 1px solid;
+    white-space: pre-wrap;
+}
+
+.forwarded_label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #8b949e;
+    margin-bottom: 4px;
+    font-style: italic;
+    opacity: 0.8;
 }
 
 .text.them {
@@ -175,6 +187,15 @@ main .signal {
     width: 100%;
     min-width: 250px;
     margin-top: 4px;
+}
+
+.media_filename {
+    font-size: 11px;
+    color: #8b949e;
+    margin-bottom: 6px;
+    padding-left: 12px;
+    font-weight: 500;
+    opacity: 0.8;
 }
 
 footer {
@@ -231,6 +252,10 @@ footer {
     font-size: 14px;
     padding: 8px 0;
     outline: none;
+    resize: none;
+    line-height: 1.5;
+    font-family: inherit;
+    overflow-y: hidden;
 }
 
 .send_button {
@@ -489,6 +514,15 @@ footer {
 
 .editing_preview.reply_mode .editing_label {
     color: #58a6ff;
+}
+
+.editing_preview.media_mode {
+    background: rgba(63, 185, 80, 0.1);
+    border-color: rgba(63, 185, 80, 0.3);
+}
+
+.editing_preview.media_mode .editing_label {
+    color: #3fb950;
 }
 
 .cancel_edit_button {

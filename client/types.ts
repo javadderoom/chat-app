@@ -18,6 +18,8 @@ export interface Message {
   replyToId?: string;
   chatId?: string;
   reactions?: Record<string, string[]>; // emoji -> list of usernames
+  isForwarded?: boolean;
+  forwardedFrom?: string; // username of the original sender
 }
 
 export interface Chat {
