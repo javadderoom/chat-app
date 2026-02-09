@@ -149,6 +149,10 @@
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 .badge_red {
     background-color: #ef4444;
 }
@@ -275,6 +279,26 @@ main .signal {
     color: white;
 }
 
+.media_content {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.media_image,
+.media_video {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 8px;
+    display: block;
+    cursor: pointer;
+}
+
+.media_audio {
+    width: 100%;
+    min-width: 250px;
+    margin-top: 4px;
+}
+
 .status_message {
     display: flex;
     justify-content: center;
@@ -322,11 +346,71 @@ footer {
     border-radius: 24px;
 
     min-height: 48px;
-    transition: border-color 0.2s;
+    min-height: 48px;
+    transition: all 0.2s;
+}
+
+.input_pill.recording_active {
+    border-color: #ef4444;
+    background: #2b1d1d;
 }
 
 .input_pill:focus-within {
     border-color: #238636;
+}
+
+.input_pill .upload_button:hover {
+    color: #c9d1d9;
+}
+
+.recording_container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0 8px;
+    gap: 12px;
+}
+
+.recording_indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ef4444;
+}
+
+.recording_dot {
+    width: 8px;
+    height: 8px;
+    background-color: #ef4444;
+    border-radius: 50%;
+}
+
+.recording_timer {
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.recording_text {
+    flex-grow: 1;
+    font-size: 12px;
+    color: #8b949e;
+}
+
+.cancel_record_button {
+    padding: 8px;
+    color: #8b949e;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cancel_record_button:hover {
+    color: #ef4444;
 }
 
 .input_pill .upload_button {
@@ -386,6 +470,14 @@ form .message_input:focus {
     background: #21262d;
     color: #484f58;
     cursor: not-allowed;
+}
+
+.send_button.recording {
+    background: #ef4444;
+}
+
+.send_button.recording:hover {
+    background: #dc2626;
 }
 
 .upload_button {

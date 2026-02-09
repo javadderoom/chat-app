@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, WifiOff, Terminal, Activity } from 'lucide-react';
+import { Send, WifiOff, Terminal, Activity, Mic, Trash2, X, Square } from 'lucide-react';
 import { useChatConnection } from './hooks/useChatConnection';
+import { useVoiceRecorder } from './hooks/useVoiceRecorder';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ServerHelpModal } from './components/ServerHelpModal';
 import { FileUploadButton, UploadResult } from './components/FileUploadButton';
@@ -43,6 +44,41 @@ const App: React.FC = () => {
     if (!input.trim()) return;
     sendMessage(input);
     setInput('');
+    setInput('');
+  };
+
+  const handleVoiceUpload = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      // Optional: Add duration if we had it, but server handles it or metadata
+
+      const response = await fetch(`${settings.serverUrl}/api/upload/voice`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const data: UploadResult = await response.json();
+      sendMediaMessage(data);
+    } catch (error) {
+      console.error('Voice upload failed:', error);
+      setUploadError('Failed to send voice message');
+    }
+  };
+
+  const { isRecording, recordingDuration, startRecording, stopRecording, cancelRecording } = useVoiceRecorder({
+    onRecordingComplete: handleVoiceUpload,
+    onError: (err) => setUploadError(err),
+  });
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Status indicator helpers
@@ -64,6 +100,8 @@ const App: React.FC = () => {
       default: return 'OFFLINE';
     }
   };
+
+
 
   return (
     <div className="root_container">
@@ -132,7 +170,42 @@ const App: React.FC = () => {
               <div
                 className={`text ${msg.isMe ? 'me' : 'them'}`}
               >
-                {msg.text}
+                {msg.messageType === 'image' && msg.mediaUrl && (
+                  <div className="media_content">
+                    <img
+                      src={msg.mediaUrl}
+                      alt={msg.fileName || 'Image'}
+                      className="media_image"
+                      onClick={() => window.open(msg.mediaUrl, '_blank')}
+                    />
+                  </div>
+                )}
+
+                {msg.messageType === 'video' && msg.mediaUrl && (
+                  <div className="media_content">
+                    <video
+                      src={msg.mediaUrl}
+                      controls
+                      className="media_video"
+                    />
+                  </div>
+                )}
+
+                {(msg.messageType === 'audio' || msg.messageType === 'voice') && msg.mediaUrl && (
+                  <div className="media_content">
+                    <audio
+                      src={msg.mediaUrl}
+                      controls
+                      className="media_audio"
+                    />
+                  </div>
+                )}
+
+                {!msg.mediaUrl && msg.text && (
+                  <div className="message_text_content">
+                    {msg.text}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -150,40 +223,81 @@ const App: React.FC = () => {
       {/* Input Area */}
       <footer>
         <form onSubmit={handleSend} className="footer_form">
-          <div className="input_pill">
-            {/* File Upload Button */}
-            <FileUploadButton
-              serverUrl={settings.serverUrl}
-              disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
-              onUploadComplete={(data: UploadResult) => {
-                setUploadError(null);
-                sendMediaMessage(data);
-              }}
-              onError={(error: string) => {
-                setUploadError(error);
-                setTimeout(() => setUploadError(null), 5000);
-              }}
-            />
+          <div className={`input_pill ${isRecording ? 'recording_active' : ''}`}>
+            {isRecording ? (
+              <div className="recording_container">
+                <div className="recording_indicator animate-pulse">
+                  <div className="recording_dot"></div>
+                  <span className="recording_timer">{formatDuration(recordingDuration)}</span>
+                </div>
+                <div className="recording_text">Recording...</div>
+                <button
+                  type="button"
+                  onClick={cancelRecording}
+                  className="cancel_record_button"
+                  title="Cancel"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* File Upload Button */}
+                <FileUploadButton
+                  serverUrl={settings.serverUrl}
+                  disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
+                  onUploadComplete={(data: UploadResult) => {
+                    setUploadError(null);
+                    sendMediaMessage(data);
+                  }}
+                  onError={(error: string) => {
+                    setUploadError(error);
+                    setTimeout(() => setUploadError(null), 5000);
+                  }}
+                />
 
-            <div className="input_wrapper">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting..."}
-                disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
-                className="message_input"
-              />
-            </div>
+                <div className="input_wrapper">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder={status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting..."}
+                    disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
+                    className="message_input"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
-          <button
-            type="submit"
-            className="send_button"
-            disabled={(!input.trim() || status !== ConnectionStatus.CONNECTED) && !settings.isDemoMode}
-          >
-            <Send size={20} />
-          </button>
+          {isRecording ? (
+            <button
+              type="button"
+              className="send_button recording"
+              onClick={stopRecording}
+            >
+              <Square size={16} fill="white" />
+            </button>
+          ) : (
+            input.trim() ? (
+              <button
+                type="submit"
+                className="send_button"
+                disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
+              >
+                <Send size={20} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="send_button"
+                onClick={startRecording}
+                disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
+              >
+                <Mic size={20} />
+              </button>
+            )
+          )}
         </form>
       </footer>
 
