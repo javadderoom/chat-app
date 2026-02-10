@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, WifiOff, Activity, Mic, Trash2, X, Square, Edit2, Check, Menu, Share2, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon } from 'lucide-react';
+import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Edit2, Check, Menu, Share2, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
@@ -264,7 +264,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             </div>
                         );
                     }
-
+                    console.log(msg)
                     return (
                         <div
                             id={`msg-${msg.id}`}
@@ -541,7 +541,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                     onClick={() => setIsStickerPickerOpen(!isStickerPickerOpen)}
                                     title="Stickers"
                                 >
-                                    <Activity size={20} />
+                                    <Smile size={20} />
                                 </button>
 
                                 {isStickerPickerOpen && (

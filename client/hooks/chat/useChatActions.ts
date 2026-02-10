@@ -231,7 +231,8 @@ export const useChatActions = ({
             mediaDuration: message.mediaDuration,
             chatId: targetChatId,
             isForwarded: true,
-            forwardedFrom: message.sender
+            forwardedFrom: message.sender,
+            stickerId: message.stickerId
         };
 
         console.log('Forwarding message:', forwardData);

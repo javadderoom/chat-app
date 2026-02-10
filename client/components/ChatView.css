@@ -764,3 +764,15 @@ footer {
 .sticker_msg .info {
     margin-bottom: 2px;
 }
+
+.sticker_trigger {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
