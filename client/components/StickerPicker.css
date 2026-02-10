@@ -16,34 +16,56 @@
 }
 
 .sticker_picker_header {
-    padding: 10px 15px;
+    padding: 12px 16px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: rgba(0, 0, 0, 0.1);
 }
 
 .sticker_picker_header h4 {
     margin: 0;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
     color: var(--text-bright);
+    letter-spacing: 0.02em;
 }
 
-.sticker_picker_header button {
+.close_btn {
     background: transparent;
     border: none;
     color: var(--text-dim);
     font-size: 1.2rem;
     cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.close_btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .sticker_grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    padding: 15px;
-    max-height: 300px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    padding: 10px;
+    max-height: 280px;
     overflow-y: auto;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.sticker_grid::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sticker_grid::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
 }
 
 .sticker_item {
@@ -53,28 +75,92 @@
     justify-content: center;
     cursor: pointer;
     border-radius: 8px;
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 4px;
 }
 
 .sticker_item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.08);
     transform: scale(1.1);
 }
 
-.sticker_item img {
+.sticker_item img,
+.sticker_item video {
     width: 100%;
     height: 100%;
     object-fit: contain;
 }
 
+.empty_pack {
+    grid-column: span 4;
+    padding: 40px 0;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.sticker_pack_tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    overflow-x: auto;
+}
+
+.sticker_pack_tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.pack_tab {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    padding: 4px;
+}
+
+.pack_tab:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.pack_tab.active {
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.pack_tab img,
+.pack_icon_video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.pack_tab.active img,
+.pack_tab:hover img,
+.pack_tab.active .pack_icon_video,
+.pack_tab:hover .pack_icon_video {
+    opacity: 1;
+}
+
 @keyframes slideUp {
     from {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(10px) scale(0.98);
     }
 
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
     }
 }

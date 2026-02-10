@@ -242,7 +242,7 @@ export const useChatActions = ({
         setMessages([]);
     }, [setMessages]);
 
-    const sendSticker = useCallback((stickerId: string) => {
+    const sendSticker = useCallback((stickerId: string, replyToId?: string) => {
         if (!stickerId) return;
         const username = settingsRef.current.username?.trim() || 'Anonymous';
 
@@ -256,7 +256,8 @@ export const useChatActions = ({
             isMe: true,
             isSystem: false,
             messageType: 'sticker',
-            stickerId: stickerId
+            stickerId: stickerId,
+            replyToId: replyToId
         };
         setMessages(prev => [...prev, localMessage]);
 
@@ -270,6 +271,7 @@ export const useChatActions = ({
                 messageType: 'sticker',
                 stickerId: stickerId,
                 text: `[STICKER]`,
+                replyToId: replyToId,
                 chatId: activeChatId || undefined
             };
 

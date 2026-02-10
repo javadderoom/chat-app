@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { StickerPicker } from './StickerPicker';
+import { AnimatedSticker } from './AnimatedSticker';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { UserSettings, ConnectionStatus, Message } from '../types';
 import './ChatView.css';
@@ -34,7 +35,7 @@ interface ChatViewProps {
     setShowServerHelp: (show: boolean) => void;
     toggleReaction: (messageId: string, emoji: string) => void;
     forwardMessage: (message: Message, targetChatId: string) => void;
-    sendSticker: (stickerId: string) => void;
+    sendSticker: (stickerId: string, replyToId?: string) => void;
     chats: Chat[];
 }
 
@@ -406,11 +407,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                                 {msg.messageType === 'sticker' && msg.stickerId && (
                                     <div className="sticker_container">
-                                        <img
-                                            src={`/stickers/${msg.stickerId}.svg`}
-                                            alt="sticker"
-                                            className="sticker_image"
-                                        />
+                                        {(msg.stickerId.endsWith('.tgs') || msg.stickerId.endsWith('.json')) ? (
+                                            <AnimatedSticker
+                                                src={`/stickers/${msg.stickerId}`}
+                                                className="sticker_image"
+                                            />
+                                        ) : msg.stickerId.endsWith('.webm') ? (
+                                            <video
+                                                src={`/stickers/${msg.stickerId}`}
+                                                className="sticker_image"
+                                                autoPlay
+                                                loop
+                                                muted
+                                                playsInline
+                                            />
+                                        ) : (
+                                            <img
+                                                src={msg.stickerId.includes('.') ? `/stickers/${msg.stickerId}` : `/stickers/${msg.stickerId}.svg`}
+                                                alt="sticker"
+                                                className="sticker_image"
+                                            />
+                                        )}
                                     </div>
                                 )}
 
@@ -530,8 +547,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                 {isStickerPickerOpen && (
                                     <StickerPicker
                                         onSelect={(id) => {
-                                            sendSticker(id);
+                                            sendSticker(id, replyingToMessage?.id);
                                             setIsStickerPickerOpen(false);
+                                            setReplyingToMessage(null);
                                         }}
                                         onClose={() => setIsStickerPickerOpen(false)}
                                     />
