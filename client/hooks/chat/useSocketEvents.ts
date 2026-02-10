@@ -57,36 +57,49 @@ export const useSocketEvents = ({
             const senderName = (data.user || data.username || '').trim().toLowerCase();
             const currentUserName = (settingsRef.current.username || '').trim().toLowerCase();
             const isFromMe = senderName === currentUserName;
+            const currentTime = Date.now();
 
             // Client-side isolation check: ignore synchronization for other chats
             if (data.chatId && activeChatIdRef.current && data.chatId !== activeChatIdRef.current) {
-                console.log('Ignored message confirm for different chat:', data.chatId);
+                console.log('Ignored message for different chat:', data.chatId);
                 return;
             }
 
-            if (data.tempId || isFromMe) {
-                let matched = false;
-                setMessages(prev => prev.map(msg => {
-                    if (msg.id === data.tempId || (isFromMe && msg.text === data.text && !msg.id.includes('-'))) {
-                        matched = true;
-                        return {
-                            ...msg,
-                            id: data.id!,
-                            timestamp: data.createdAt ? new Date(data.createdAt).getTime() : msg.timestamp,
-                            replyToId: data.replyToId
-                        };
-                    }
-                    return msg;
-                }));
-
-                if (matched) return;
-            }
-
-            const currentTime = Date.now();
-
             setMessages(prev => {
-                if (data.id && prev.some(m => m.id === data.id)) return prev;
+                // 1. If we already have this specific database ID, ignore it
+                if (data.id && prev.some(m => m.id === data.id)) {
+                    return prev;
+                }
 
+                let matchedIndex = -1;
+
+                // 2. Try to find a local optimistic message to "confirm" with server data
+                if (data.tempId) {
+                    matchedIndex = prev.findIndex(msg => msg.id === data.tempId);
+                } else if (isFromMe) {
+                    // Fallback matching for own messages without tempId
+                    const recentTime = currentTime - 10000;
+                    matchedIndex = prev.findIndex(msg =>
+                        msg.text === data.text &&
+                        msg.sender === (data.user || data.username) &&
+                        msg.timestamp > recentTime &&
+                        !msg.id.includes('-') // Real UUIDs are usually hyphenated, temp ones here are 7-char random strings
+                    );
+                }
+
+                if (matchedIndex !== -1) {
+                    // Update the existing optimistic message
+                    const updatedMessages = [...prev];
+                    updatedMessages[matchedIndex] = {
+                        ...updatedMessages[matchedIndex],
+                        id: data.id || updatedMessages[matchedIndex].id,
+                        timestamp: data.createdAt ? new Date(data.createdAt).getTime() : updatedMessages[matchedIndex].timestamp,
+                        replyToId: data.replyToId
+                    };
+                    return updatedMessages;
+                }
+
+                // 3. Prevent duplicates if data.id is missing (system messages or old server logic)
                 const recentTime = currentTime - 10000;
                 const duplicate = prev.find(
                     msg => msg.text === data.text &&
@@ -97,17 +110,13 @@ export const useSocketEvents = ({
 
                 if (duplicate) return prev;
 
-                if (data.chatId && activeChatIdRef.current && data.chatId !== activeChatIdRef.current) {
-                    console.log('Ignored message for different chat:', data.chatId);
-                    return prev;
-                }
-
+                // 4. It's a truly new message (from others or system)
                 const newMessage: Message = {
                     id: data.id || Math.random().toString(36).substring(7),
                     text: data.text,
                     sender: data.user || data.username,
                     timestamp: data.createdAt ? new Date(data.createdAt).getTime() : currentTime,
-                    isMe: false,
+                    isMe: isFromMe,
                     isSystem: false,
                     messageType: data.messageType as any,
                     mediaUrl: data.mediaUrl,
@@ -122,6 +131,7 @@ export const useSocketEvents = ({
                     stickerId: data.stickerId
                 };
 
+                // Update chat list order if necessary
                 if (data.chatId) {
                     setChats(prevChats => {
                         const chatIndex = prevChats.findIndex(c => c.id === data.chatId);

@@ -731,3 +731,34 @@ footer {
         display: block;
     }
 }
+
+/* Stickers */
+.sticker_msg .text {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+
+.sticker_container {
+    padding: 4px;
+    display: flex;
+    justify-content: center;
+}
+
+.sticker_image {
+    max-width: 160px;
+    width: 100%;
+    height: auto;
+    display: block;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+    transition: transform 0.2s;
+}
+
+.sticker_image:hover {
+    transform: scale(1.1) rotate(2deg);
+}
+
+.sticker_msg .info {
+    margin-bottom: 2px;
+}

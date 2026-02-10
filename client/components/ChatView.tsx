@@ -414,7 +414,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                     </div>
                                 )}
 
-                                {(msg.text && (msg.messageType !== 'sticker' && (!msg.mediaUrl || (!msg.text.startsWith('[IMAGE]') && !msg.text.startsWith('[VIDEO]') && !msg.text.startsWith('[AUDIO]') && !msg.text.startsWith('[FILE]'))))) && (
+                                {(msg.text && msg.messageType !== 'sticker' && (!msg.mediaUrl || (!msg.text.startsWith('[IMAGE]') && !msg.text.startsWith('[VIDEO]') && !msg.text.startsWith('[AUDIO]') && !msg.text.startsWith('[FILE]')))) && (
                                     <div className="message_text_content">
                                         {msg.text}
                                         {msg.updatedAt && <span className="text-[10px] text-gray-500 ml-2 italic">(edited)</span>}

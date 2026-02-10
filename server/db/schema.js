@@ -1,7 +1,7 @@
 const { pgTable, pgEnum, text, timestamp, uuid, varchar, integer, boolean, jsonb } = require('drizzle-orm/pg-core');
 
 // Message type enum
-const messageTypeEnum = pgEnum('message_type', ['text', 'image', 'audio', 'video', 'file']);
+const messageTypeEnum = pgEnum('message_type', ['text', 'image', 'audio', 'video', 'file', 'sticker']);
 
 // Users table
 const users = pgTable('users', {
@@ -45,6 +45,7 @@ const messages = pgTable('messages', {
   reactions: jsonb('reactions').default({}).notNull(),
   isForwarded: boolean('is_forwarded').default(false).notNull(),
   forwardedFrom: varchar('forwarded_from', { length: 100 }),
+  stickerId: text('sticker_id'),
   updatedAt: timestamp('updated_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

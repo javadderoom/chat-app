@@ -131,6 +131,7 @@ io.on('connection', (socket) => {
         chatId: data.chatId || null, // Link to chat room
         isForwarded: data.isForwarded || false,
         forwardedFrom: data.forwardedFrom || null,
+        stickerId: data.stickerId || null,
       };
 
       console.log('Insert values:', {
