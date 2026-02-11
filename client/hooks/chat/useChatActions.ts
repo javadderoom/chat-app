@@ -7,15 +7,17 @@ interface UseChatActionsProps {
     socket: Socket | null;
     activeChatId: string | null;
     settingsRef: MutableRefObject<UserSettings>;
+    userRef: MutableRefObject<{ id: string; username: string; displayName: string; avatarUrl?: string } | null>;
     setMessages: Dispatch<SetStateAction<Message[]>>;
     setChats: Dispatch<SetStateAction<Chat[]>>;
-    addMessage: (text: string, sender: string, isMe?: boolean, isSystem?: boolean, replyToId?: string) => string;
+    addMessage: (text: string, sender: string, isMe?: boolean, isSystem?: boolean, replyToId?: string, displayName?: string) => string;
 }
 
 export const useChatActions = ({
     socket,
     activeChatId,
     settingsRef,
+    userRef,
     setMessages,
     setChats,
     addMessage
@@ -41,7 +43,8 @@ export const useChatActions = ({
         }
 
         // Add local message immediately for optimistic UI
-        const tempId = addMessage(trimmedText, username, true, false, replyToId);
+        const userDisplayName = userRef.current?.displayName || username;
+        const tempId = addMessage(trimmedText, username, true, false, replyToId, userDisplayName);
 
         if (settingsRef.current.isDemoMode) {
             // Simulate reply in demo mode

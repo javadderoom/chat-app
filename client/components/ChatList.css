@@ -132,8 +132,8 @@
     padding: 15px 20px;
     border-top: 1px solid var(--glass-border);
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .connection_status {
@@ -162,6 +162,56 @@
     color: var(--neon-blue);
     background: rgba(0, 243, 255, 0.05);
     border-color: rgba(0, 243, 255, 0.2);
+}
+
+.footer_user_section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.user_info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.user_display_name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+
+.footer_actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.footer_logout_button {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.footer_logout_button:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.05);
+    border-color: rgba(239, 68, 68, 0.2);
 }
 
 .status_dot {

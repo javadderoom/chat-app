@@ -6,27 +6,46 @@ const cors = require('cors');
 const { db, pool } = require('./db/index');
 const { messages, chats, users } = require('./db/schema');
 const { desc, eq, ne, and } = require('drizzle-orm');
+const { verifyToken } = require('./middleware/auth');
 const uploadRoutes = require('./routes/upload');
+const authRoutes = require('./routes/auth');
+const { verifySocket } = require('./middleware/auth');
+
+// Track online users
+const onlineUsers = new Map();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Auth routes (public)
+app.use('/api/auth', authRoutes);
+
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Upload routes
-app.use('/api/upload', uploadRoutes);
+// Upload routes (protected)
+app.use('/api/upload', verifyToken, uploadRoutes);
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow connections from any IP on LAN
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
+io.use(verifySocket);
+
 io.on('connection', (socket) => {
+  const userId = socket.userId;
+  const username = socket.user?.username;
+  const displayName = socket.user?.displayName;
+
+  console.log(`User connected: ${username} (${socket.id})`);
+
+  // Add user to online tracking
+  onlineUsers.set(userId, socket.id);
   console.log('User connected:', socket.id);
 
   // Handle joining a specific chat room
@@ -47,30 +66,17 @@ io.on('connection', (socket) => {
   });
 
   socket.on('message', async (data) => {
-    console.log('Received message event from socket:', socket.id);
-    console.log('Message data:', data);
-    console.log('Message data types:', {
-      user: typeof data?.user,
-      username: typeof data?.username,
-      text: typeof data?.text,
-      content: typeof data?.content,
-      message: typeof data?.message
-    });
+    console.log(`Received message from ${username}:`, data);
+
+    if (!userId) {
+      console.error('Unauthorized message attempt');
+      return;
+    }
 
     // Validate data object exists
     if (!data || typeof data !== 'object') {
       console.error('Invalid message data received:', data);
       return;
-    }
-
-    // Extract and validate username - ensure it's always a non-empty string
-    let username = 'Anonymous';
-    if (data.user && typeof data.user === 'string') username = data.user.trim();
-    else if (data.username && typeof data.username === 'string') username = data.username.trim();
-
-    if (!username) {
-      console.warn('Received message with empty username, using Anonymous');
-      username = 'Anonymous';
     }
 
     // Extract and validate content - can be empty for media messages
@@ -94,7 +100,6 @@ io.on('connection', (socket) => {
     }
 
     // Final validation before database insert
-    const finalUsername = String(username || 'Anonymous').trim();
     const finalContent = content ? String(content).trim() : null;
 
     // For text messages, require content; for media messages, content is optional
@@ -103,13 +108,8 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (!finalUsername || finalUsername.length === 0) {
-      console.error('Username validation failed before insert. Original username:', username);
-      return;
-    }
-
     console.log('Preparing to save message:', {
-      username: finalUsername,
+      username: username,
       messageType: data.messageType || 'text',
       hasContent: !!finalContent,
       hasMedia: isMediaMessage,
@@ -118,7 +118,8 @@ io.on('connection', (socket) => {
     try {
       // Save message to database with multimedia support
       const insertValues = {
-        username: String(finalUsername),
+        userId: userId,
+        username: username,
         messageType: data.messageType || 'text',
         content: finalContent || null,
         mediaUrl: data.mediaUrl || null,
@@ -135,6 +136,7 @@ io.on('connection', (socket) => {
       };
 
       console.log('Insert values:', {
+        userId: insertValues.userId,
         username: insertValues.username,
         messageType: insertValues.messageType,
         contentLength: insertValues.content?.length || 0,
@@ -150,9 +152,15 @@ io.on('connection', (socket) => {
           .where(eq(chats.id, insertValues.chatId));
       }
 
+      // Get user's displayName for broadcasting
+      const [user] = await db.select({ displayName: users.displayName })
+        .from(users)
+        .where(eq(users.id, userId));
+
       console.log('Message saved to database:', {
         id: savedMessage.id,
         username: savedMessage.username,
+        displayName: user?.displayName,
         messageType: savedMessage.messageType,
         hasMedia: !!savedMessage.mediaUrl,
       });
@@ -162,11 +170,14 @@ io.on('connection', (socket) => {
         io.to(insertValues.chatId).emit('message', {
           ...data,
           id: savedMessage.id,
-          chatId: savedMessage.chatId, // Explicitly include database chatId
+          chatId: savedMessage.chatId,
           createdAt: savedMessage.createdAt,
           replyToId: savedMessage.replyToId,
           isForwarded: savedMessage.isForwarded,
-          forwardedFrom: savedMessage.forwardedFrom
+          forwardedFrom: savedMessage.forwardedFrom,
+          userId: savedMessage.userId,
+          username: savedMessage.username,
+          displayName: user?.displayName || savedMessage.username
         });
       } else {
         // Fallback to global broadcast (legacy/system messages)
@@ -175,7 +186,10 @@ io.on('connection', (socket) => {
           id: savedMessage.id,
           chatId: null,
           createdAt: savedMessage.createdAt,
-          replyToId: savedMessage.replyToId
+          replyToId: savedMessage.replyToId,
+          userId: savedMessage.userId,
+          username: savedMessage.username,
+          displayName: user?.displayName || savedMessage.username
         });
       }
     } catch (error) {
@@ -313,13 +327,14 @@ io.on('connection', (socket) => {
 
   // Handle Chat Creation
   socket.on('createChat', async (data) => {
-    const { name, description } = data;
+    const { name, description, imageUrl } = data;
     if (!name) return;
 
     try {
       const [newChat] = await db.insert(chats).values({
         name,
-        description: description || null
+        description: description || null,
+        imageUrl: imageUrl || null
       }).returning();
 
       console.log('New chat created:', newChat.id);
@@ -329,13 +344,39 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle Chat Update
+  socket.on('updateChat', async (data) => {
+    const { id, name, description, imageUrl } = data;
+    if (!id) return;
+
+    try {
+      const updateData = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
+
+      if (Object.keys(updateData).length === 0) return;
+
+      const [updatedChat] = await db.update(chats)
+        .set(updateData)
+        .where(eq(chats.id, id))
+        .returning();
+
+      console.log('Chat updated:', updatedChat.id);
+      io.emit('chatUpdated', updatedChat);
+    } catch (error) {
+      console.error('Error updating chat:', error);
+    }
+  });
+
   socket.on('disconnect', () => {
-    console.log('User disconnected');
+    console.log(`User disconnected: ${username} (${socket.id})`);
+    onlineUsers.delete(userId);
   });
 });
 
-// Example API endpoint to get recent messages
-app.get('/api/messages', async (req, res) => {
+// Example API endpoint to get recent messages (protected)
+app.get('/api/messages', verifyToken, async (req, res) => {
   try {
     const { chatId } = req.query;
 
@@ -344,12 +385,38 @@ app.get('/api/messages', async (req, res) => {
       whereClause = and(eq(messages.isDeleted, false), eq(messages.chatId, chatId));
     }
 
-    const query = db.select().from(messages).where(whereClause);
-
-    const recentMessages = await query
+    // Join messages with users to get display names
+    const recentMessages = await db
+      .select({
+        id: messages.id,
+        chatId: messages.chatId,
+        userId: messages.userId,
+        username: messages.username,
+        messageType: messages.messageType,
+        content: messages.content,
+        mediaUrl: messages.mediaUrl,
+        mediaType: messages.mediaType,
+        mediaDuration: messages.mediaDuration,
+        mediaThumbnail: messages.mediaThumbnail,
+        fileName: messages.fileName,
+        fileSize: messages.fileSize,
+        isDeleted: messages.isDeleted,
+        replyToId: messages.replyToId,
+        reactions: messages.reactions,
+        isForwarded: messages.isForwarded,
+        forwardedFrom: messages.forwardedFrom,
+        stickerId: messages.stickerId,
+        updatedAt: messages.updatedAt,
+        createdAt: messages.createdAt,
+        displayName: users.displayName
+      })
+      .from(messages)
+      .leftJoin(users, eq(messages.userId, users.id))
+      .where(whereClause)
       .orderBy(desc(messages.createdAt))
       .limit(50);
-    console.log(recentMessages)
+
+    console.log(recentMessages);
     res.json(recentMessages);
   } catch (error) {
     console.error('Error fetching messages:', error.message);
@@ -367,8 +434,8 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-// API endpoint to get all chats
-app.get('/api/chats', async (req, res) => {
+// API endpoint to get all chats (protected)
+app.get('/api/chats', verifyToken, async (req, res) => {
   try {
     const allChats = await db.select().from(chats).orderBy(desc(chats.lastMessageAt));
     res.json(allChats);

@@ -4,6 +4,8 @@ import { ChatList } from './components/ChatList';
 import { ChatView } from './components/ChatView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ServerHelpModal } from './components/ServerHelpModal';
+import LoginPage from './components/LoginPage';
+import { useAuth } from './contexts/AuthContext';
 import { UserSettings } from './types';
 import './index.css';
 
@@ -14,6 +16,8 @@ const DEFAULT_SETTINGS: UserSettings = {
 };
 
 const App: React.FC = () => {
+  const { user, token, logout, isLoading: authLoading } = useAuth();
+  
   const [settings, setSettings] = useState<UserSettings>(() => {
     const saved = localStorage.getItem('blackout_settings');
     return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
@@ -23,10 +27,17 @@ const App: React.FC = () => {
   const [showSidebar, setShowSidebar] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Update settings username when user changes
+  React.useEffect(() => {
+    if (user) {
+      setSettings(prev => ({ ...prev, username: user.username }));
+    }
+  }, [user]);
+
   const {
     messages, chats, activeChatId, setActiveChatId, status,
     sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker
-  } = useChatConnection(settings);
+  } = useChatConnection(settings, token, user);
 
   const handleSaveSettings = (newSettings: UserSettings) => {
     const sanitizedSettings = {
@@ -39,7 +50,24 @@ const App: React.FC = () => {
 
   const activeChat = chats.find(c => c.id === activeChatId);
 
+  // Show loading spinner while checking authentication
+if (authLoading) {
   return (
+    <div className="loading-container">
+      <div className="text-center">
+        <div className="loading-spinner"></div>
+        <p className="loading-text">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+// Show login page if not authenticated
+if (!user || !token) {
+  return <LoginPage />;
+}
+
+return (
     <div className={`app_container ${showSidebar ? 'sidebar_open' : ''}`}>
       <ChatList
         chats={chats}
@@ -49,6 +77,8 @@ const App: React.FC = () => {
         createChat={createChat}
         setShowSidebar={setShowSidebar}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        user={user}
+        onLogout={logout}
       />
 
       <ChatView
@@ -67,6 +97,7 @@ const App: React.FC = () => {
         forwardMessage={forwardMessage}
         sendSticker={sendSticker}
         chats={chats}
+        user={user}
       />
 
       <SettingsPanel

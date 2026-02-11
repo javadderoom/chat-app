@@ -2,6 +2,7 @@ export interface Message {
   id: string;
   text: string;
   sender: string;
+  displayName?: string; // Display name from user profile
   timestamp: number;
   isSystem?: boolean;
   isMe?: boolean;

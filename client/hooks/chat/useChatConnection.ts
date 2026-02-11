@@ -5,7 +5,14 @@ import { DbMessage } from './types';
 import { useSocketEvents } from './useSocketEvents';
 import { useChatActions } from './useChatActions';
 
-export const useChatConnection = (settings: UserSettings) => {
+interface User {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+}
+
+export const useChatConnection = (settings: UserSettings, token: string | null, user: User | null) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [chats, setChats] = useState<Chat[]>([]);
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -22,12 +29,18 @@ export const useChatConnection = (settings: UserSettings) => {
         activeChatIdRef.current = activeChatId;
     }, [activeChatId]);
 
-    const addMessage = useCallback((text: string, sender: string, isMe: boolean = false, isSystem: boolean = false, replyToId?: string) => {
+    const userRef = useRef(user);
+    useEffect(() => {
+        userRef.current = user;
+    }, [user]);
+
+    const addMessage = useCallback((text: string, sender: string, isMe: boolean = false, isSystem: boolean = false, replyToId?: string, displayName?: string) => {
         const id = Math.random().toString(36).substring(7);
         const newMessage: Message = {
             id,
             text,
             sender,
+            displayName: displayName || sender, // Use provided displayName or fallback to sender
             timestamp: Date.now(),
             isMe,
             isSystem,
@@ -54,6 +67,7 @@ export const useChatConnection = (settings: UserSettings) => {
         socket,
         activeChatId,
         settingsRef,
+        userRef,
         setMessages,
         setChats,
         addMessage
@@ -61,8 +75,14 @@ export const useChatConnection = (settings: UserSettings) => {
 
     // Fetch all available chats
     const fetchChats = useCallback(async () => {
+        if (!token) return;
+        
         try {
-            const response = await fetch(`${settings.serverUrl}/api/chats`);
+            const response = await fetch(`${settings.serverUrl}/api/chats`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             if (response.ok) {
                 const data: Chat[] = await response.json();
                 setChats(data);
@@ -75,7 +95,7 @@ export const useChatConnection = (settings: UserSettings) => {
         } catch (error) {
             console.error('Error fetching chats:', error);
         }
-    }, [settings.serverUrl]);
+    }, [settings.serverUrl, token]);
 
     useEffect(() => {
         if (status === ConnectionStatus.CONNECTED) {
@@ -91,6 +111,12 @@ export const useChatConnection = (settings: UserSettings) => {
             return;
         }
 
+        if (!token) {
+            setStatus(ConnectionStatus.ERROR);
+            addMessage("Authentication required. Please login.", "System", false, true);
+            return;
+        }
+
         setStatus(ConnectionStatus.CONNECTING);
 
         const newSocket = io(settings.serverUrl, {
@@ -100,7 +126,10 @@ export const useChatConnection = (settings: UserSettings) => {
             reconnectionDelayMax: 5000,
             timeout: 20000,
             transports: ['polling', 'websocket'],
-            forceNew: true
+            forceNew: true,
+            auth: {
+                token: token
+            }
         });
 
         setSocket(newSocket);
@@ -109,7 +138,7 @@ export const useChatConnection = (settings: UserSettings) => {
             newSocket.removeAllListeners();
             newSocket.disconnect();
         };
-    }, [settings.serverUrl, settings.isDemoMode, settings.username, addMessage]);
+    }, [settings.serverUrl, settings.isDemoMode, settings.username, token, addMessage]);
 
     // Handle active chat changes (Fetch history & Join room)
     useEffect(() => {
@@ -122,7 +151,11 @@ export const useChatConnection = (settings: UserSettings) => {
 
             try {
                 console.log(`Loading history for chat: ${activeChatId}`);
-                const response = await fetch(`${settings.serverUrl}/api/messages?chatId=${activeChatId}`);
+                const response = await fetch(`${settings.serverUrl}/api/messages?chatId=${activeChatId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 if (response.ok) {
                     const dbMessages: DbMessage[] = await response.json();
                     const loadedMessages: Message[] = dbMessages
@@ -131,6 +164,7 @@ export const useChatConnection = (settings: UserSettings) => {
                             id: dbMsg.id,
                             text: dbMsg.content,
                             sender: dbMsg.username,
+                            displayName: dbMsg.displayName || dbMsg.username, // Fallback to username if no display name
                             timestamp: new Date(dbMsg.createdAt).getTime(),
                             isMe: dbMsg.username === settings.username,
                             isSystem: false,
@@ -159,7 +193,7 @@ export const useChatConnection = (settings: UserSettings) => {
         if (socket && socket.connected && activeChatId) {
             socket.emit('joinChat', activeChatId);
         }
-    }, [activeChatId, status, socket, settings.serverUrl, settings.isDemoMode, settings.username]);
+    }, [activeChatId, status, socket, settings.serverUrl, settings.isDemoMode, settings.username, token]);
 
     return {
         messages,

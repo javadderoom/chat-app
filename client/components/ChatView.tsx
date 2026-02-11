@@ -21,6 +21,13 @@ interface Chat {
     description?: string;
 }
 
+interface User {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+}
+
 interface ChatViewProps {
     activeChat: Chat | undefined;
     messages: Message[];
@@ -37,6 +44,7 @@ interface ChatViewProps {
     forwardMessage: (message: Message, targetChatId: string) => void;
     sendSticker: (stickerId: string, replyToId?: string) => void;
     chats: Chat[];
+    user?: User;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -54,7 +62,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     toggleReaction,
     forwardMessage,
     sendSticker,
-    chats
+    chats,
+    user
 }) => {
     const [input, setInput] = useState('');
     const [uploadError, setUploadError] = useState<string | null>(null);
@@ -264,7 +273,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             </div>
                         );
                     }
-                    console.log(msg)
+                    
                     return (
                         <div
                             id={`msg-${msg.id}`}
@@ -273,7 +282,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         >
                             <div className={`info ${msg.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                 <span className={`username text-xs font-bold ${msg.isMe ? 'text-green-400' : 'text-blue-400'}`}>
-                                    {msg.sender}
+                                    {msg.displayName || msg.sender}
                                 </span>
                                 <span className="time">
                                     {format(msg.timestamp, 'HH:mm:ss')}
@@ -362,7 +371,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                         <div className="reply_line"></div>
                                         <div className="reply_content_preview">
                                             <span className="reply_user">
-                                                {messages.find(m => m.id === msg.replyToId)?.sender || 'Message'}
+                                                {messages.find(m => m.id === msg.replyToId)?.displayName || messages.find(m => m.id === msg.replyToId)?.sender || 'Message'}
                                             </span>
                                             <p className="reply_text">
                                                 {truncateText(messages.find(m => m.id === msg.replyToId)?.text || 'Original message not found')}
@@ -505,7 +514,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 {replyingToMessage && (
                     <div className="editing_preview reply_mode">
                         <div className="editing_info">
-                            <span className="editing_label">Replying to {replyingToMessage.sender}</span>
+                            <span className="editing_label">Replying to {replyingToMessage.displayName || replyingToMessage.sender}</span>
                             <p className="editing_text">
                                 {truncateText(replyingToMessage.text)}
                             </p>

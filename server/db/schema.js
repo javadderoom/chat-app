@@ -6,8 +6,12 @@ const messageTypeEnum = pgEnum('message_type', ['text', 'image', 'audio', 'video
 // Users table
 const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
-  username: varchar('username', { length: 100 }).notNull().unique(),
+  username: varchar('username', { length: 50 }).notNull().unique(),
+  displayName: varchar('display_name', { length: 100 }).notNull(),
+  password: varchar('password', { length: 255 }).notNull(),
+  avatarUrl: text('avatar_url'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 // Chats table for multiple rooms
@@ -15,6 +19,7 @@ const chats = pgTable('chats', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
   description: text('description'),
+  imageUrl: text('image_url'),
   lastMessageAt: timestamp('last_message_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -22,8 +27,8 @@ const chats = pgTable('chats', {
 // Messages table with multimedia support
 const messages = pgTable('messages', {
   id: uuid('id').defaultRandom().primaryKey(),
-  chatId: uuid('chat_id').references(() => chats.id), // Link to chat room
-  userId: uuid('user_id').references(() => users.id),
+  chatId: uuid('chat_id').references(() => chats.id, { onDelete: 'cascade' }), // Link to chat room
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   username: varchar('username', { length: 100 }).notNull(),
 
   // Message type enum

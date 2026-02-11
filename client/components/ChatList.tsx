@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
-import { Terminal, Plus, MessageSquare, X, Settings } from 'lucide-react';
+import { Terminal, Plus, MessageSquare, X, Settings, LogOut, User } from 'lucide-react';
 import './ChatList.css';
 
 interface Chat {
     id: string;
     name: string;
     description?: string;
+}
+
+interface User {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
 }
 
 interface ChatListProps {
@@ -16,6 +23,8 @@ interface ChatListProps {
     createChat: (name: string, description: string) => void;
     setShowSidebar: (show: boolean) => void;
     onOpenSettings: () => void;
+    user?: User;
+    onLogout?: () => void;
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
@@ -25,7 +34,9 @@ export const ChatList: React.FC<ChatListProps> = ({
     status,
     createChat,
     setShowSidebar,
-    onOpenSettings
+    onOpenSettings,
+    user,
+    onLogout
 }) => {
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatName, setNewChatName] = useState('');
@@ -83,9 +94,24 @@ export const ChatList: React.FC<ChatListProps> = ({
                         <div className={`status_dot ${status.toLowerCase()}`}></div>
                         <span>{status}</span>
                     </div>
-                    <button onClick={onOpenSettings} className="footer_settings_button" title="Settings">
-                        <Settings size={18} />
-                    </button>
+                    <div className="footer_user_section">
+                        {user && (
+                            <div className="user_info" title={`${user.displayName} (@${user.username})`}>
+                                <User size={16} />
+                                <span className="user_display_name">{user.displayName}</span>
+                            </div>
+                        )}
+                        <div className="footer_actions">
+                            {onLogout && (
+                                <button onClick={onLogout} className="footer_logout_button" title="Logout">
+                                    <LogOut size={16} />
+                                </button>
+                            )}
+                            <button onClick={onOpenSettings} className="footer_settings_button" title="Settings">
+                                <Settings size={16} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </aside>
 

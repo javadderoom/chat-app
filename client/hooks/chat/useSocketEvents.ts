@@ -10,7 +10,7 @@ interface UseSocketEventsProps {
     setMessages: Dispatch<SetStateAction<Message[]>>;
     setChats: Dispatch<SetStateAction<Chat[]>>;
     setStatus: Dispatch<SetStateAction<ConnectionStatus>>;
-    addMessage: (text: string, sender: string, isMe?: boolean, isSystem?: boolean, replyToId?: string) => string;
+    addMessage: (text: string, sender: string, isMe?: boolean, isSystem?: boolean, replyToId?: string, displayName?: string) => string;
 }
 
 export const useSocketEvents = ({
@@ -94,7 +94,8 @@ export const useSocketEvents = ({
                         ...updatedMessages[matchedIndex],
                         id: data.id || updatedMessages[matchedIndex].id,
                         timestamp: data.createdAt ? new Date(data.createdAt).getTime() : updatedMessages[matchedIndex].timestamp,
-                        replyToId: data.replyToId
+                        replyToId: data.replyToId,
+                        displayName: data.displayName || updatedMessages[matchedIndex].displayName
                     };
                     return updatedMessages;
                 }
@@ -115,6 +116,7 @@ export const useSocketEvents = ({
                     id: data.id || Math.random().toString(36).substring(7),
                     text: data.text,
                     sender: data.user || data.username,
+                    displayName: data.displayName || data.user || data.username,
                     timestamp: data.createdAt ? new Date(data.createdAt).getTime() : currentTime,
                     isMe: isFromMe,
                     isSystem: false,
