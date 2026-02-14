@@ -174,6 +174,12 @@ export const useSocketEvents = ({
             setChats(prev => [newChat, ...prev]);
         };
 
+        const handleChatUpdated = (updatedChat: Chat) => {
+            setChats(prev => prev.map(chat => 
+                chat.id === updatedChat.id ? updatedChat : chat
+            ));
+        };
+
         socket.on('connect', handleConnect);
         socket.on('connect_error', handleConnectError);
         socket.on('disconnect', handleDisconnect);
@@ -182,6 +188,7 @@ export const useSocketEvents = ({
         socket.on('messageDeleted', handleMessageDeleted);
         socket.on('reactionUpdated', handleReactionUpdated);
         socket.on('chatCreated', handleChatCreated);
+        socket.on('chatUpdated', handleChatUpdated);
 
         return () => {
             socket.off('connect', handleConnect);
@@ -192,6 +199,7 @@ export const useSocketEvents = ({
             socket.off('messageDeleted', handleMessageDeleted);
             socket.off('reactionUpdated', handleReactionUpdated);
             socket.off('chatCreated', handleChatCreated);
+            socket.off('chatUpdated', handleChatUpdated);
         };
     }, [socket, settingsRef, activeChatIdRef, setMessages, setChats, setStatus, addMessage]);
 };

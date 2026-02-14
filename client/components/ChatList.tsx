@@ -6,6 +6,7 @@ interface Chat {
     id: string;
     name: string;
     description?: string;
+    imageUrl?: string;
 }
 
 interface User {
@@ -79,7 +80,11 @@ export const ChatList: React.FC<ChatListProps> = ({
                             }}
                         >
                             <div className="chat_icon">
-                                <MessageSquare size={16} />
+                                {chat.imageUrl ? (
+                                    <img src={chat.imageUrl} alt="" className="chat_list_avatar" />
+                                ) : (
+                                    <MessageSquare size={16} />
+                                )}
                             </div>
                             <div className="chat_info">
                                 <span className="chat_name">{chat.name}</span>

@@ -246,6 +246,18 @@ export const useChatActions = ({
         setMessages([]);
     }, [setMessages]);
 
+    const updateChat = useCallback((chatId: string, data: { name?: string; description?: string; imageUrl?: string }) => {
+        if (!socket || !socket.connected) return;
+
+        socket.emit('updateChat', { id: chatId, ...data });
+
+        setChats(prevChats => prevChats.map(chat => 
+            chat.id === chatId 
+                ? { ...chat, ...data }
+                : chat
+        ));
+    }, [socket, setChats]);
+
     const sendSticker = useCallback((stickerId: string, replyToId?: string) => {
         if (!stickerId) return;
         const username = settingsRef.current.username?.trim() || 'Anonymous';
@@ -307,6 +319,7 @@ export const useChatActions = ({
         toggleReaction,
         forwardMessage,
         sendSticker,
-        clearMessages
+        clearMessages,
+        updateChat
     };
 };

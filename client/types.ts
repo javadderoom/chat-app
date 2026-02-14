@@ -28,6 +28,7 @@ export interface Chat {
   id: string;
   name: string;
   description?: string;
+  imageUrl?: string;
   lastMessageAt?: string | number;
   createdAt: string | number;
 }

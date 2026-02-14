@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Edit2, Check, Menu, Share2, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon } from 'lucide-react';
+import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Edit2, Check, Menu, Share2, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
@@ -12,6 +12,7 @@ import './ChatView.css';
 
 import { ConfirmModal } from './ConfirmModal';
 import { ForwardModal } from './ForwardModal';
+import { ChatSettingsModal } from './ChatSettingsModal';
 
 const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉'];
 
@@ -19,6 +20,7 @@ interface Chat {
     id: string;
     name: string;
     description?: string;
+    imageUrl?: string;
 }
 
 interface User {
@@ -43,8 +45,10 @@ interface ChatViewProps {
     toggleReaction: (messageId: string, emoji: string) => void;
     forwardMessage: (message: Message, targetChatId: string) => void;
     sendSticker: (stickerId: string, replyToId?: string) => void;
+    updateChat: (chatId: string, data: { name?: string; description?: string; imageUrl?: string }) => void;
     chats: Chat[];
     user?: User;
+    token: string | null;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -62,8 +66,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
     toggleReaction,
     forwardMessage,
     sendSticker,
+    updateChat,
     chats,
-    user
+    user,
+    token
 }) => {
     const [input, setInput] = useState('');
     const [uploadError, setUploadError] = useState<string | null>(null);
@@ -76,6 +82,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const [messageToForward, setMessageToForward] = useState<Message | null>(null);
     const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
     const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
+    const [isChatSettingsOpen, setIsChatSettingsOpen] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -249,10 +256,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <button onClick={() => setShowSidebar(!showSidebar)} className="menu_toggle">
                         <Menu size={20} />
                     </button>
+                    {activeChat?.imageUrl ? (
+                        <img src={activeChat.imageUrl} alt="" className="chat_avatar" />
+                    ) : (
+                        <div className="chat_avatar_placeholder">
+                            <MessageSquare size={20} />
+                        </div>
+                    )}
                     <div className="chat_title">
                         <h2>{activeChat?.name || 'Loading...'}</h2>
                         {activeChat?.description && <p>{activeChat.description}</p>}
                     </div>
+                </div>
+                <div className="header_right">
+                    <button 
+                        onClick={() => setIsChatSettingsOpen(true)} 
+                        className="chat_settings_btn"
+                        title="Chat Settings"
+                    >
+                        <Settings size={20} />
+                    </button>
                 </div>
             </header>
 
@@ -646,6 +669,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 currentChatId={activeChat?.id || null}
                 onForward={confirmForward}
                 onCancel={() => setIsForwardModalOpen(false)}
+            />
+
+            <ChatSettingsModal
+                isOpen={isChatSettingsOpen}
+                chat={activeChat}
+                serverUrl={settings.serverUrl}
+                token={token || ''}
+                onSave={(chatId, data) => {
+                    updateChat(chatId, data);
+                    setIsChatSettingsOpen(false);
+                }}
+                onCancel={() => setIsChatSettingsOpen(false)}
             />
         </div>
     );

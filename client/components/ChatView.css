@@ -26,6 +26,47 @@ header {
     gap: 20px;
 }
 
+.header_right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.chat_settings_btn {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.chat_settings_btn:hover {
+    background: var(--glass-hover);
+    color: var(--text-bright);
+}
+
+.chat_avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--glass-border);
+}
+
+.chat_avatar_placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--glass-hover);
+    border: 2px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+}
+
 .menu_toggle {
     display: none;
     background: transparent;
