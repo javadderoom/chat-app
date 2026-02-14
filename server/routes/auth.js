@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const { db } = require('../db/index');
 const { users } = require('../db/schema');
 const { eq, and, or, ne } = require('drizzle-orm');
-const { generateToken } = require('../middleware/auth');
+const { generateToken, verifyToken } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -109,7 +109,7 @@ router.get('/me', async (req, res) => {
   }
 });
 
-router.put('/profile', async (req, res) => {
+router.put('/profile', verifyToken, async (req, res) => {
   try {
     const { displayName, avatarUrl, password: newPassword } = req.body;
     const userId = req.userId;
@@ -149,7 +149,7 @@ router.put('/profile', async (req, res) => {
   }
 });
 
-router.put('/username', async (req, res) => {
+router.put('/username', verifyToken, async (req, res) => {
   try {
     const { username } = req.body;
     const userId = req.userId;

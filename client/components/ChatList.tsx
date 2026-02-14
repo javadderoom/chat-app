@@ -102,7 +102,13 @@ export const ChatList: React.FC<ChatListProps> = ({
                     <div className="footer_user_section">
                         {user && (
                             <div className="user_info" title={`${user.displayName} (@${user.username})`}>
-                                <User size={16} />
+                                {user.avatarUrl ? (
+                                    <img src={user.avatarUrl} alt="" className="user_avatar_footer" />
+                                ) : (
+                                    <div className="user_icon_footer">
+                                        <User size={16} />
+                                    </div>
+                                )}
                                 <span className="user_display_name">{user.displayName}</span>
                             </div>
                         )}

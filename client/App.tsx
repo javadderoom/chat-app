@@ -103,17 +103,10 @@ return (
       />
 
       <SettingsPanel
-        currentSettings={settings}
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        onSave={(newSettings) => {
-          handleSaveSettings(newSettings);
-          setIsSettingsOpen(false);
-        }}
-        onOpenServerHelp={() => {
-          setShowServerHelp(true);
-          setIsSettingsOpen(false);
-        }}
+        token={token}
+        serverUrl={settings.serverUrl}
       />
 
       {showServerHelp && (
