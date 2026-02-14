@@ -303,6 +303,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             key={msg.id}
                             className={`message ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_msg' : ''}`}
                         >
+                            {!msg.isMe && (
+                                <div className="message_avatar">
+                                    {userAvatars[msg.sender] ? (
+                                        <img src={userAvatars[msg.sender]} alt="" />
+                                    ) : (
+                                        <div className="message_avatar_placeholder">
+                                            {(msg.displayName || msg.sender).charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            <div className="message_content">
+                                <div className={`message_bubble ${msg.isMe ? 'me' : 'them'}`}>
+                                    <div className="message_header">
+                                        <span className={`username text-xs font-bold ${msg.isMe ? 'text-green-400' : 'text-blue-400'}`}>
+                                            {msg.displayName || msg.sender}
+                                        </span>
+                                    </div>
+                                    <div
+                                        className={`text ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_text' : ''} relative group cursor-pointer`}
+                                        onClick={(e) => handleMessageClick(e, msg)}
+                                    >
                             <div className={`info ${msg.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                 <span className={`username text-xs font-bold ${msg.isMe ? 'text-green-400' : 'text-blue-400'}`}>
                                     {msg.displayName || msg.sender}
@@ -488,6 +510,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                         })}
                                     </div>
                                 )}
+                                <div className="message_footer">
+                                    <span className="time">
+                                        {format(msg.timestamp, 'HH:mm:ss')}
+                                    </span>
+                                </div>
+                                </div>
                             </div>
                         </div>
                     );
