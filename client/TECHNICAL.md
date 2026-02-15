@@ -26,6 +26,7 @@ client/
 ├── components/           # React components
 │   ├── ChatList.tsx      # Chat room list sidebar
 │   ├── ChatView.tsx      # Main message view
+│   ├── MessageBubble.tsx # Message bubble component
 │   ├── LoginPage.tsx      # Authentication page
 │   ├── SettingsPanel.tsx  # User settings modal
 │   ├── ServerHelpModal.tsx
@@ -33,7 +34,8 @@ client/
 │   ├── VoiceMessagePlayer.tsx
 │   ├── ForwardModal.tsx
 │   ├── ConfirmModal.tsx
-│   └── FileUploadButton.tsx
+│   ├── FileUploadButton.tsx
+│   └── ChatSettingsModal.tsx
 ├── contexts/
 │   └── AuthContext.tsx    # Authentication state
 ├── hooks/
@@ -70,6 +72,8 @@ The app uses React Context for auth state and custom hooks for chat state:
    - Main hook managing Socket.IO connection
    - Handles message state, chat list, connection status
    - Implements reconnection logic with exponential backoff
+   - Fetches and caches user data (avatars, display names) on connect
+   - Returns `users` object for avatar lookup across components
 
 ### Data Flow
 
@@ -193,6 +197,15 @@ interface UserSettings {
 }
 ```
 
+### UserInfo
+
+```typescript
+interface UserInfo {
+  avatarUrl?: string;
+  displayName: string;
+}
+```
+
 ## Socket.IO Configuration
 
 ```typescript
@@ -215,6 +228,7 @@ const socket = io(serverUrl, {
 | GET | `/api/messages?chatId=` | Bearer token | Get messages |
 | GET | `/api/chats` | Bearer token | Get all chats |
 | POST | `/api/upload` | Bearer token | Upload file |
+| GET | `/api/auth/users` | Bearer token | Get all users (for avatar caching) |
 
 ## Authentication
 

@@ -629,11 +629,21 @@ footer {
     }
 }
 
+.message_actions_backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999;
+    cursor: default;
+}
+
 .message_actions_wrapper {
     position: fixed;
     z-index: 1000;
     pointer-events: none;
-     transform: translateY(-100%) translateY(-8px);
+    transform: translateY(-100%);
 }
 
 .message_actions_popup {

@@ -79,17 +79,22 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         className={`text ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_text' : ''} relative group`}
                     >
                         {activeMenuId === msg.id && createPortal(
-                            <div
-                                className="message_actions_wrapper"
-                                style={{
-                                    top: `${menuPosition.top}px`,
-                                    [msg.isMe ? 'right' : 'left']: `${menuPosition.right}px`
-                                }}
-                            >
+                            <>
                                 <div
-                                    className="message_actions_popup"
-                                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                    className="message_actions_backdrop"
+                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); onMessageClick(e, msg); }}
+                                />
+                                <div
+                                    className="message_actions_wrapper"
+                                    style={{
+                                        top: `${menuPosition.top}px`,
+                                        [msg.isMe ? 'right' : 'left']: `${menuPosition.right}px`
+                                    }}
                                 >
+                                    <div
+                                        className="message_actions_popup"
+                                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                    >
                                     <div className="emoji_reactions_picker">
                                         {EMOJIS.map(emoji => (
                                             <button
@@ -171,7 +176,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         </>
                                     )}
                                 </div>
-                            </div>,
+                            </div>
+                            </>,
                             document.body
                         )}
 

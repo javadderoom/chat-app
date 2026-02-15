@@ -134,14 +134,17 @@ jwt.sign(
 | GET | `/me` | Yes | Get current user |
 | PUT | `/profile` | Yes | Update user profile |
 | PUT | `/username` | Yes | Update username |
-| GET | `/users` | Yes | List all users |
+| GET | `/users` | Yes | List all users (avatar caching) |
 | GET | `/user/:username` | Yes | Get user by username |
 
 ### Upload Routes (`/api/upload`)
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | `/` | Yes | Upload file (multipart/form-data) |
+| POST | `/image` | Yes | Upload image |
+| POST | `/video` | Yes | Upload video |
+| POST | `/audio` | Yes | Upload audio file |
+| POST | `/voice` | Yes | Upload voice message |
 
 ### Other Routes
 
@@ -189,9 +192,9 @@ jwt.sign(
 
 - Handled by Multer middleware
 - Files stored in `server/uploads/`
-- Images: `uploads/images/`
-- Audio: `uploads/audio/`
+- Categories: `images/`, `audio/`, `video/`
 - Static serve: `/uploads` route
+- All upload routes require authentication via `verifyToken` middleware
 
 ## Server Configuration
 
