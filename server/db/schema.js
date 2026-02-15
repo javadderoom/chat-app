@@ -23,6 +23,7 @@ const chats = pgTable('chats', {
   lastMessageAt: timestamp('last_message_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   isPrivate: boolean('is_private').default(false).notNull(),
+  isDm: boolean('is_dm').default(false).notNull(),
 });
 
 // Chat members table - links users to chats

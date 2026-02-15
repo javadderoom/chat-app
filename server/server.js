@@ -709,11 +709,11 @@ app.post('/api/chats/dm', verifyToken, async (req, res) => {
       if (members.length === 2) {
         const memberIds = members.map(m => m.userId);
         if (memberIds.includes(currentUserId) && memberIds.includes(targetUser.id)) {
-          // Found existing DM
+          // Verify this is actually a DM (isDm flag)
           const [existingChat] = await db
             .select()
             .from(chats)
-            .where(eq(chats.id, chatId))
+            .where(and(eq(chats.id, chatId), eq(chats.isDm, true)))
             .limit(1);
           if (existingChat) {
             return res.json(existingChat);

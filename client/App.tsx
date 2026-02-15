@@ -35,7 +35,7 @@ const App: React.FC = () => {
   }, [user]);
 
   const {
-    messages, chats, activeChatId, setActiveChatId, status,
+    messages, chats, activeChatId, setActiveChatId, status, fetchChats,
     sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, deleteChat, users
   } = useChatConnection(settings, token, user);
 
@@ -99,6 +99,7 @@ return (
         updateChat={updateChat}
         deleteChat={deleteChat}
         setActiveChatId={setActiveChatId}
+        fetchChats={fetchChats}
         chats={chats}
         user={user}
         token={token}

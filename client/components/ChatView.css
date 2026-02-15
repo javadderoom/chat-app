@@ -355,6 +355,12 @@ main .signal {
     color: #8b949e;
 }
 
+.edited_marker {
+    font-size: 10px;
+    color: #8b949e;
+    margin-left: 6px;
+}
+
 .message_footer {
     display: flex;
     justify-content: flex-end;
@@ -980,6 +986,15 @@ footer {
     overflow-wrap: break-word;
     hyphens: auto;
     white-space: pre-wrap;
+}
+
+.message_text_content.media_caption {
+    font-size: 14px;
+    padding: 8px 12px;
+    margin-top: 4px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .upload_button:hover {

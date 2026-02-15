@@ -11,6 +11,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { ForwardModal } from './ForwardModal';
 import { ChatSettingsModal } from './ChatSettingsModal';
 import { ChatMembersPanel } from './ChatMembersPanel';
+import { ProfileModal } from './ProfileModal';
 
 interface Chat {
     id: string;
@@ -44,6 +45,7 @@ interface ChatViewProps {
     updateChat: (chatId: string, data: { name?: string; description?: string; imageUrl?: string }) => void;
     deleteChat: (chatId: string) => void;
     setActiveChatId: (chatId: string) => void;
+    fetchChats: () => Promise<void>;
     chats: Chat[];
     user?: User;
     token: string | null;
@@ -68,6 +70,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     updateChat,
     deleteChat,
     setActiveChatId,
+    fetchChats,
     chats,
     user,
     token,
@@ -90,6 +93,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
     const [isChatSettingsOpen, setIsChatSettingsOpen] = useState(false);
     const [showMembersPanel, setShowMembersPanel] = useState(false);
+    const [profileUser, setProfileUser] = useState<{ username: string; displayName: string; avatarUrl?: string } | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -228,6 +232,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
     const handleDirectMessage = async (username: string) => {
         setActiveMenuId(null);
+        console.log('handleDirectMessage called with username:', username);
         try {
             const response = await fetch(`${settings.serverUrl}/api/chats/dm`, {
                 method: 'POST',
@@ -237,11 +242,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 },
                 body: JSON.stringify({ username })
             });
+            console.log('DM response status:', response.status);
             if (response.ok) {
                 const dmChat = await response.json();
-                if (setActiveChatId) {
-                    setActiveChatId(dmChat.id);
-                }
+                console.log('DM chat received:', dmChat);
+                await fetchChats();
+                setActiveChatId(dmChat.id);
+                console.log('setActiveChatId called with:', dmChat.id);
             }
         } catch (error) {
             console.error('Error creating DM:', error);
@@ -361,6 +368,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             onDelete={handleDelete}
                             scrollToMessage={scrollToMessage}
                             truncateText={truncateText}
+                            onProfileClick={setProfileUser}
                         />
                     );
                 })}
@@ -568,6 +576,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     onClose={() => setShowMembersPanel(false)}
                 />
             )}
+
+            <ProfileModal
+                isOpen={!!profileUser}
+                user={profileUser}
+                onClose={() => setProfileUser(null)}
+                onDirectMessage={handleDirectMessage}
+            />
         </div>
     );
 };

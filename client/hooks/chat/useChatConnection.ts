@@ -209,7 +209,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
                             id: dbMsg.id,
                             text: dbMsg.content,
                             sender: dbMsg.username,
-                            displayName: dbMsg.displayName || dbMsg.username, // Fallback to username if no display name
+                            displayName: dbMsg.displayName || dbMsg.username,
                             timestamp: new Date(dbMsg.createdAt).getTime(),
                             isMe: dbMsg.username === settings.username,
                             isSystem: false,
@@ -224,7 +224,8 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
                             reactions: dbMsg.reactions || {},
                             isForwarded: dbMsg.isForwarded,
                             forwardedFrom: dbMsg.forwardedFrom,
-                            stickerId: dbMsg.stickerId
+                            stickerId: dbMsg.stickerId,
+                            updatedAt: dbMsg.updatedAt ? new Date(dbMsg.updatedAt).getTime() : undefined
                         }));
                     setMessages(loadedMessages);
                 }

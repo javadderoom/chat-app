@@ -30,6 +30,7 @@ interface MessageBubbleProps {
     onDelete: (id: string) => void;
     scrollToMessage: (id: string) => void;
     truncateText: (text: string, length?: number) => string;
+    onProfileClick?: (user: { username: string; displayName: string; avatarUrl?: string }) => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -49,6 +50,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     onDelete,
     scrollToMessage,
     truncateText,
+    onProfileClick,
 }) => {
     const [showReactionsList, setShowReactionsList] = useState(false);
     const hasMedia = msg.messageType === 'image' || msg.messageType === 'video' || msg.messageType === 'audio' || msg.messageType === 'voice';
@@ -60,7 +62,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             onClick={(e: React.MouseEvent) => onMessageClick(e, msg)}
         >   
             {!msg.isMe && (
-                <div className="message_avatar">
+                <div 
+                    className="message_avatar"
+                    onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        onProfileClick?.({
+                            username: msg.sender,
+                            displayName: msg.displayName || msg.sender,
+                            avatarUrl: userAvatars[msg.sender.toLowerCase()]
+                        });
+                    }}
+                >
                     {userAvatars[msg.sender.toLowerCase()] && userAvatars[msg.sender.toLowerCase()] !== '' ? (
                         <img src={userAvatars[msg.sender.toLowerCase()]} alt="" />
                     ) : (
@@ -278,9 +290,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         )}
 
                         {(msg.text && msg.messageType !== 'sticker' && (!msg.mediaUrl || (!msg.text.startsWith('[IMAGE]') && !msg.text.startsWith('[VIDEO]') && !msg.text.startsWith('[AUDIO]') && !msg.text.startsWith('[FILE]')))) && (
-                            <div className="message_text_content" style={{ direction: isRTL(msg.text) ? 'rtl' : 'ltr', textAlign: isRTL(msg.text) ? 'right' : 'left' }}>
+                            <div 
+                                className={`message_text_content ${hasMedia ? 'media_caption' : ''}`} 
+                                style={{ direction: isRTL(msg.text) ? 'rtl' : 'ltr', textAlign: isRTL(msg.text) ? 'right' : 'left' }}
+                            >
                                 {msg.text}
-                                {msg.updatedAt && <span className="text-[10px] text-gray-500 ml-2 italic">(edited)</span>}
                             </div>
                         )}
 
@@ -306,6 +320,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         )}
                         <span className="time">
                             {format(msg.timestamp, 'HH:mm:ss')}
+                            {msg.updatedAt && <span className="edited_marker">(edited)</span>}
                         </span>
                         
                     </div>
