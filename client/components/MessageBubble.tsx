@@ -8,6 +8,11 @@ import { Message, UserSettings, UserInfo } from '../types';
 
 const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉', '😎', '😍', '🤔', '😅', '🤣', '😭', '💀', '👀', '🙄', '😴', '🤯', '🥳', '😇', '🤡', '👻', '💩', '🍌', '🍕', '🚀', '⭐', '💯', '✅'];
 
+const isRTL = (text: string): boolean => {
+    const persianRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+    return persianRegex.test(text);
+};
+
 interface MessageBubbleProps {
     msg: Message;
     settings: UserSettings;
@@ -255,7 +260,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         )}
 
                         {(msg.text && msg.messageType !== 'sticker' && (!msg.mediaUrl || (!msg.text.startsWith('[IMAGE]') && !msg.text.startsWith('[VIDEO]') && !msg.text.startsWith('[AUDIO]') && !msg.text.startsWith('[FILE]')))) && (
-                            <div className="message_text_content">
+                            <div className="message_text_content" style={{ direction: isRTL(msg.text) ? 'rtl' : 'ltr', textAlign: isRTL(msg.text) ? 'right' : 'left' }}>
                                 {msg.text}
                                 {msg.updatedAt && <span className="text-[10px] text-gray-500 ml-2 italic">(edited)</span>}
                             </div>

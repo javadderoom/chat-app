@@ -969,6 +969,7 @@ footer {
     word-break: break-word;
     overflow-wrap: break-word;
     hyphens: auto;
+    white-space: pre-wrap;
 }
 
 .upload_button:hover {
