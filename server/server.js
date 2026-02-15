@@ -693,51 +693,51 @@ app.post('/api/chats/dm', verifyToken, async (req, res) => {
       return res.status(400).json({ error: 'Cannot create DM with yourself' });
     }
 
-    // Check if DM already exists (a chat where both users are members and it's marked as DM)
-    const existingDMs = await db
-      .select({
-        chat: chats,
-        member: chatMembers
-      })
+    // Find existing DM: a chat where BOTH users are the only members
+    const currentUserChats = await db
+      .select({ chatId: chatMembers.chatId })
       .from(chatMembers)
-      .innerJoin(chats, eq(chats.id, chatMembers.chatId))
       .where(eq(chatMembers.userId, currentUserId));
 
-    // Filter for DM chats where both users are members
-    let dmChat = null;
-    for (const { chat } of existingDMs) {
-      if (chat.isDm) {
-        const otherMembers = await db
-          .select()
-          .from(chatMembers)
-          .where(and(
-            eq(chatMembers.chatId, chat.id),
-            eq(chatMembers.userId, targetUser.id)
-          ))
-          .limit(1);
-        if (otherMembers.length > 0) {
-          dmChat = chat;
-          break;
+    for (const { chatId } of currentUserChats) {
+      // Check if this chat has exactly 2 members (the two users)
+      const members = await db
+        .select({ userId: chatMembers.userId })
+        .from(chatMembers)
+        .where(eq(chatMembers.chatId, chatId));
+
+      if (members.length === 2) {
+        const memberIds = members.map(m => m.userId);
+        if (memberIds.includes(currentUserId) && memberIds.includes(targetUser.id)) {
+          // Found existing DM
+          const [existingChat] = await db
+            .select()
+            .from(chats)
+            .where(eq(chats.id, chatId))
+            .limit(1);
+          if (existingChat) {
+            return res.json(existingChat);
+          }
         }
       }
     }
 
-    if (dmChat) {
-      return res.json(dmChat);
-    }
+    // Create new DM chat with consistent naming (sorted usernames)
+    const currentUsername = (await db.select().from(users).where(eq(users.id, currentUserId)).limit(1))[0].username;
+    const usernames = [currentUsername, targetUser.username].sort();
+    const chatName = `${usernames[0]} & ${usernames[1]}`;
 
-    // Create new DM chat
     const [newChat] = await db.insert(chats).values({
-      name: targetUser.displayName || targetUser.username,
+      name: chatName,
       description: `DM with ${targetUser.displayName || targetUser.username}`,
       isPrivate: true,
       isDm: true
     }).returning();
 
-    // Add both users as members
+    // Add both users as members (both admins for DMs)
     await db.insert(chatMembers).values([
-      { chatId: newChat.id, userId: currentUserId, role: 'member' },
-      { chatId: newChat.id, userId: targetUser.id, role: 'member' }
+      { chatId: newChat.id, userId: currentUserId, role: 'admin' },
+      { chatId: newChat.id, userId: targetUser.id, role: 'admin' }
     ]);
 
     // Emit socket event
@@ -747,6 +747,48 @@ app.post('/api/chats/dm', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Error creating DM:', error);
     res.status(500).json({ error: 'Failed to create DM' });
+  }
+});
+
+// API endpoint to delete a chat
+app.delete('/api/chats/:chatId', verifyToken, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.userId;
+
+    // Check if user is admin of this chat
+    const membership = await db
+      .select()
+      .from(chatMembers)
+      .where(and(
+        eq(chatMembers.chatId, chatId),
+        eq(chatMembers.userId, userId)
+      ))
+      .limit(1);
+
+    if (membership.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this chat' });
+    }
+
+    if (membership[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can delete the chat' });
+    }
+
+    // Check if it's the Global chat
+    const [chat] = await db.select().from(chats).where(eq(chats.id, chatId)).limit(1);
+    if (chat && chat.name === 'Global') {
+      return res.status(400).json({ error: 'Cannot delete the Global chat' });
+    }
+
+    // Delete the chat (cascade will remove members and messages)
+    await db.delete(chats).where(eq(chats.id, chatId));
+
+    io.emit('chatDeleted', chatId);
+
+    res.json({ success: true, message: 'Chat deleted' });
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    res.status(500).json({ error: 'Failed to delete chat' });
   }
 });
 

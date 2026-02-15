@@ -8,8 +8,10 @@ interface UseChatActionsProps {
     activeChatId: string | null;
     settingsRef: MutableRefObject<UserSettings>;
     userRef: MutableRefObject<{ id: string; username: string; displayName: string; avatarUrl?: string } | null>;
+    tokenRef: MutableRefObject<string | null>;
     setMessages: Dispatch<SetStateAction<Message[]>>;
     setChats: Dispatch<SetStateAction<Chat[]>>;
+    setActiveChatId: Dispatch<SetStateAction<string | null>>;
     addMessage: (text: string, sender: string, isMe?: boolean, isSystem?: boolean, replyToId?: string, displayName?: string) => string;
 }
 
@@ -18,8 +20,10 @@ export const useChatActions = ({
     activeChatId,
     settingsRef,
     userRef,
+    tokenRef,
     setMessages,
     setChats,
+    setActiveChatId,
     addMessage
 }: UseChatActionsProps) => {
 
@@ -258,6 +262,23 @@ export const useChatActions = ({
         ));
     }, [socket, setChats]);
 
+    const deleteChat = useCallback(async (chatId: string) => {
+        try {
+            const response = await fetch(`${settingsRef.current.serverUrl}/api/chats/${chatId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${tokenRef.current}`
+                }
+            });
+            if (response.ok) {
+                setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
+                setActiveChatId(null);
+            }
+        } catch (error) {
+            console.error('Error deleting chat:', error);
+        }
+    }, [setChats, setActiveChatId, settingsRef, tokenRef]);
+
     const sendSticker = useCallback((stickerId: string, replyToId?: string) => {
         if (!stickerId) return;
         const username = settingsRef.current.username?.trim() || 'Anonymous';
@@ -320,6 +341,7 @@ export const useChatActions = ({
         forwardMessage,
         sendSticker,
         clearMessages,
-        updateChat
+        updateChat,
+        deleteChat
     };
 };

@@ -19,6 +19,7 @@ interface ChatSettingsModalProps {
     serverUrl: string;
     token: string;
     onSave: (chatId: string, data: { name?: string; description?: string; imageUrl?: string }) => void;
+    onDelete: (chatId: string) => void;
     onCancel: () => void;
 }
 
@@ -28,6 +29,7 @@ export const ChatSettingsModal: React.FC<ChatSettingsModalProps> = ({
     serverUrl,
     token,
     onSave,
+    onDelete,
     onCancel,
 }) => {
     const [name, setName] = useState('');
@@ -290,6 +292,21 @@ export const ChatSettingsModal: React.FC<ChatSettingsModalProps> = ({
                         </div>
                     </div>
                     <div className="modal_footer">
+                        {chat && chat.name !== 'Global' && (
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    if (confirm('Are you sure you want to delete this chat? This cannot be undone.')) {
+                                        onDelete(chat.id);
+                                    }
+                                }} 
+                                className="btn_danger"
+                            >
+                                <Trash2 size={16} />
+                                Delete Chat
+                            </button>
+                        )}
+                        <div className="footer_spacer"></div>
                         <button type="button" onClick={onCancel} className="btn_secondary">
                             Cancel
                         </button>

@@ -40,6 +40,11 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         userRef.current = user;
     }, [user]);
 
+    const tokenRef = useRef(token);
+    useEffect(() => {
+        tokenRef.current = token;
+    }, [token]);
+
     const addMessage = useCallback((text: string, sender: string, isMe: boolean = false, isSystem: boolean = false, replyToId?: string, displayName?: string) => {
         const id = Math.random().toString(36).substring(7);
         const newMessage: Message = {
@@ -74,8 +79,10 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         activeChatId,
         settingsRef,
         userRef,
+        tokenRef,
         setMessages,
         setChats,
+        setActiveChatId,
         addMessage
     });
 

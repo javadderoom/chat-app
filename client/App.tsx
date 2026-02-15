@@ -36,7 +36,7 @@ const App: React.FC = () => {
 
   const {
     messages, chats, activeChatId, setActiveChatId, status,
-    sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, users
+    sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, deleteChat, users
   } = useChatConnection(settings, token, user);
 
   const handleSaveSettings = (newSettings: UserSettings) => {
@@ -97,6 +97,7 @@ return (
         forwardMessage={forwardMessage}
         sendSticker={sendSticker}
         updateChat={updateChat}
+        deleteChat={deleteChat}
         setActiveChatId={setActiveChatId}
         chats={chats}
         user={user}

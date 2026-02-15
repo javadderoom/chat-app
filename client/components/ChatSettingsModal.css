@@ -233,3 +233,33 @@
     padding: 20px;
     text-align: center;
 }
+
+.modal_footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid #30363d;
+}
+
+.footer_spacer {
+    flex: 1;
+}
+
+.btn_danger {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #da3633;
+    border: none;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn_danger:hover {
+    background: #f85149;
+}

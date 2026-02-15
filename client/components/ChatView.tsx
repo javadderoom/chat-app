@@ -42,6 +42,7 @@ interface ChatViewProps {
     forwardMessage: (message: Message, targetChatId: string) => void;
     sendSticker: (stickerId: string, replyToId?: string) => void;
     updateChat: (chatId: string, data: { name?: string; description?: string; imageUrl?: string }) => void;
+    deleteChat: (chatId: string) => void;
     setActiveChatId: (chatId: string) => void;
     chats: Chat[];
     user?: User;
@@ -65,6 +66,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     forwardMessage,
     sendSticker,
     updateChat,
+    deleteChat,
     setActiveChatId,
     chats,
     user,
@@ -549,6 +551,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 token={token || ''}
                 onSave={(chatId, data) => {
                     updateChat(chatId, data);
+                    setIsChatSettingsOpen(false);
+                }}
+                onDelete={(chatId) => {
+                    deleteChat(chatId);
                     setIsChatSettingsOpen(false);
                 }}
                 onCancel={() => setIsChatSettingsOpen(false)}
