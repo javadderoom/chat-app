@@ -668,6 +668,88 @@ app.delete('/api/chats/:chatId/members/:userId', verifyToken, async (req, res) =
   }
 });
 
+// API endpoint to find or create a direct message chat
+app.post('/api/chats/dm', verifyToken, async (req, res) => {
+  try {
+    const { username } = req.body;
+    const currentUserId = req.userId;
+
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    // Find target user
+    const [targetUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username.toLowerCase()))
+      .limit(1);
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (targetUser.id === currentUserId) {
+      return res.status(400).json({ error: 'Cannot create DM with yourself' });
+    }
+
+    // Check if DM already exists (a chat where both users are members and it's marked as DM)
+    const existingDMs = await db
+      .select({
+        chat: chats,
+        member: chatMembers
+      })
+      .from(chatMembers)
+      .innerJoin(chats, eq(chats.id, chatMembers.chatId))
+      .where(eq(chatMembers.userId, currentUserId));
+
+    // Filter for DM chats where both users are members
+    let dmChat = null;
+    for (const { chat } of existingDMs) {
+      if (chat.isDm) {
+        const otherMembers = await db
+          .select()
+          .from(chatMembers)
+          .where(and(
+            eq(chatMembers.chatId, chat.id),
+            eq(chatMembers.userId, targetUser.id)
+          ))
+          .limit(1);
+        if (otherMembers.length > 0) {
+          dmChat = chat;
+          break;
+        }
+      }
+    }
+
+    if (dmChat) {
+      return res.json(dmChat);
+    }
+
+    // Create new DM chat
+    const [newChat] = await db.insert(chats).values({
+      name: targetUser.displayName || targetUser.username,
+      description: `DM with ${targetUser.displayName || targetUser.username}`,
+      isPrivate: true,
+      isDm: true
+    }).returning();
+
+    // Add both users as members
+    await db.insert(chatMembers).values([
+      { chatId: newChat.id, userId: currentUserId, role: 'member' },
+      { chatId: newChat.id, userId: targetUser.id, role: 'member' }
+    ]);
+
+    // Emit socket event
+    io.emit('chatCreated', newChat);
+
+    res.json(newChat);
+  } catch (error) {
+    console.error('Error creating DM:', error);
+    res.status(500).json({ error: 'Failed to create DM' });
+  }
+});
+
 // Test database connection on startup with retries
 async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -724,6 +806,11 @@ server.listen(PORT, '0.0.0.0', async () => {
     // Add is_private column if not exists
     await pool.query(`
       ALTER TABLE chats ADD COLUMN IF NOT EXISTS is_private BOOLEAN DEFAULT false NOT NULL
+    `).catch(() => {}); // Ignore if already exists
+    
+    // Add is_dm column if not exists
+    await pool.query(`
+      ALTER TABLE chats ADD COLUMN IF NOT EXISTS is_dm BOOLEAN DEFAULT false NOT NULL
     `).catch(() => {}); // Ignore if already exists
     
     // Create chat_members table if not exists

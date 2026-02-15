@@ -42,6 +42,7 @@ interface ChatViewProps {
     forwardMessage: (message: Message, targetChatId: string) => void;
     sendSticker: (stickerId: string, replyToId?: string) => void;
     updateChat: (chatId: string, data: { name?: string; description?: string; imageUrl?: string }) => void;
+    setActiveChatId: (chatId: string) => void;
     chats: Chat[];
     user?: User;
     token: string | null;
@@ -64,6 +65,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     forwardMessage,
     sendSticker,
     updateChat,
+    setActiveChatId,
     chats,
     user,
     token,
@@ -222,6 +224,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
         setActiveMenuId(null);
     };
 
+    const handleDirectMessage = async (username: string) => {
+        setActiveMenuId(null);
+        try {
+            const response = await fetch(`${settings.serverUrl}/api/chats/dm`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username })
+            });
+            if (response.ok) {
+                const dmChat = await response.json();
+                if (setActiveChatId) {
+                    setActiveChatId(dmChat.id);
+                }
+            }
+        } catch (error) {
+            console.error('Error creating DM:', error);
+        }
+    };
+
     const confirmForward = (targetChatId: string) => {
         if (messageToForward) {
             forwardMessage(messageToForward, targetChatId);
@@ -330,6 +354,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             toggleReaction={toggleReaction}
                             onReply={startReply}
                             onForward={handleForward}
+                            onDirectMessage={handleDirectMessage}
                             onEdit={startEditing}
                             onDelete={handleDelete}
                             scrollToMessage={scrollToMessage}

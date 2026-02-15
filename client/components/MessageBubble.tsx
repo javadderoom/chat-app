@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Mic, Share2, Edit2, Trash2, Smile } from 'lucide-react';
+import { Mic, Share2, Edit2, Trash2, Smile, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { AnimatedSticker } from './AnimatedSticker';
@@ -25,6 +25,7 @@ interface MessageBubbleProps {
     toggleReaction: (messageId: string, emoji: string) => void;
     onReply: (msg: Message) => void;
     onForward: (msg: Message) => void;
+    onDirectMessage: (username: string) => void;
     onEdit: (msg: Message) => void;
     onDelete: (id: string) => void;
     scrollToMessage: (id: string) => void;
@@ -43,6 +44,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     toggleReaction,
     onReply,
     onForward,
+    onDirectMessage,
     onEdit,
     onDelete,
     scrollToMessage,
@@ -156,6 +158,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         <Share2 size={14} />
                                         <span>Forward</span>
                                     </button>
+
+                                    {!msg.isMe && (
+                                        <button
+                                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); onDirectMessage(msg.sender); }}
+                                            className="menu_item"
+                                        >
+                                            <MessageCircle size={14} />
+                                            <span>Direct Message</span>
+                                        </button>
+                                    )}
 
                                     {msg.isMe && (
                                         <>

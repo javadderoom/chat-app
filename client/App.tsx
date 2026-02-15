@@ -97,6 +97,7 @@ return (
         forwardMessage={forwardMessage}
         sendSticker={sendSticker}
         updateChat={updateChat}
+        setActiveChatId={setActiveChatId}
         chats={chats}
         user={user}
         token={token}

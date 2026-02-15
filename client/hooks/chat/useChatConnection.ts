@@ -18,12 +18,17 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
     const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
     const [socket, setSocket] = useState<Socket | null>(null);
+    const socketRef = useRef<Socket | null>(null);
     const [users, setUsers] = useState<Record<string, UserInfo>>({});
 
     const settingsRef = useRef(settings);
     useEffect(() => {
         settingsRef.current = settings;
     }, [settings]);
+
+    useEffect(() => {
+        socketRef.current = socket;
+    }, [socket]);
 
     const activeChatIdRef = useRef(activeChatId);
     useEffect(() => {
@@ -140,6 +145,11 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         }
 
         if (!token) {
+            if (socketRef.current) {
+                socketRef.current.removeAllListeners();
+                socketRef.current.disconnect();
+                setSocket(null);
+            }
             setStatus(ConnectionStatus.ERROR);
             addMessage("Authentication required. Please login.", "System", false, true);
             return;
