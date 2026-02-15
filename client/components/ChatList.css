@@ -313,6 +313,23 @@
     outline: none;
 }
 
+.checkbox_group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.checkbox_group input[type="checkbox"] {
+    width: auto;
+    accent-color: #238636;
+}
+
+.checkbox_group span {
+    color: #8b949e;
+}
+
 .modal_actions {
     display: flex;
     justify-content: flex-end;

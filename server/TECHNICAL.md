@@ -71,7 +71,20 @@ server/
   description: text,
   imageUrl: text,
   lastMessageAt: timestamp,
-  createdAt: timestamp
+  createdAt: timestamp,
+  isPrivate: boolean DEFAULT false
+}
+```
+
+### Chat Members Table
+
+```javascript
+{
+  id: uuid (PK, auto-generated),
+  chatId: uuid (FK -> chats.id, cascade delete),
+  userId: uuid (FK -> users.id, cascade delete),
+  role: varchar(20) DEFAULT 'member', // 'admin' or 'member'
+  joinedAt: timestamp
 }
 ```
 
@@ -152,7 +165,10 @@ jwt.sign(
 |--------|----------|------|-------------|
 | GET | `/api/messages` | Yes | Get messages (50 recent) |
 | GET | `/api/messages?chatId=` | Yes | Get messages for chat |
-| GET | `/api/chats` | Yes | Get all chat rooms |
+| GET | `/api/chats` | Yes | Get user's chat rooms (members + public) |
+| GET | `/api/chats/:chatId/members` | Yes | Get chat members |
+| POST | `/api/chats/:chatId/members` | Yes | Add member to chat |
+| DELETE | `/api/chats/:chatId/members/:userId` | Yes | Remove member from chat |
 
 ## Socket.IO Events
 
@@ -160,7 +176,7 @@ jwt.sign(
 
 | Event | Data | Description |
 |-------|------|-------------|
-| `joinChat` | `{ chatId }` | Join a chat room |
+| `joinChat` | `{ chatId }` | Join a chat room (auto-adds to public chats) |
 | `message` | `{ text, messageType, mediaUrl, ... }` | Send message |
 | `editMessage` | `{ id, text }` | Edit message |
 | `deleteMessage` | `{ id }` | Delete message |

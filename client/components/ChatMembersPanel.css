@@ -1,0 +1,136 @@
+.members_panel {
+    width: 280px;
+    height: 100%;
+    background: var(--bg-secondary, #1a1a2e);
+    border-left: 1px solid var(--border-color, #2a2a4a);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.members_panel_header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color, #2a2a4a);
+    color: var(--text-primary, #e0e0e0);
+}
+
+.members_panel_header h3 {
+    flex: 1;
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.members_panel_close {
+    background: none;
+    border: none;
+    color: var(--text-secondary, #888);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    border-radius: 4px;
+}
+
+.members_panel_close:hover {
+    background: var(--bg-hover, #2a2a4a);
+    color: var(--text-primary, #e0e0e0);
+}
+
+.members_panel_content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.members_panel_loading {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-secondary, #888);
+    font-size: 13px;
+}
+
+.members_panel_list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.members_panel_item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    transition: background 0.15s;
+}
+
+.members_panel_item:hover {
+    background: var(--bg-hover, #2a2a4a);
+}
+
+.members_panel_avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent-color, #4a4a8a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.members_panel_avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.members_panel_info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.members_panel_name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary, #e0e0e0);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.members_panel_username {
+    font-size: 12px;
+    color: var(--text-secondary, #888);
+}
+
+.members_panel_badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    background: var(--accent-color, #4a4a8a);
+    color: white;
+    border-radius: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .members_panel {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 100;
+        width: 100%;
+        max-width: 300px;
+    }
+}

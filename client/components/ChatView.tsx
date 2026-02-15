@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Menu, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare } from 'lucide-react';
+import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Menu, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare, Users } from 'lucide-react';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { StickerPicker } from './StickerPicker';
 import { MessageBubble } from './MessageBubble';
@@ -10,6 +10,7 @@ import './ChatView.css';
 import { ConfirmModal } from './ConfirmModal';
 import { ForwardModal } from './ForwardModal';
 import { ChatSettingsModal } from './ChatSettingsModal';
+import { ChatMembersPanel } from './ChatMembersPanel';
 
 interface Chat {
     id: string;
@@ -84,6 +85,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
     const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
     const [isChatSettingsOpen, setIsChatSettingsOpen] = useState(false);
+    const [showMembersPanel, setShowMembersPanel] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -279,6 +281,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     </div>
                 </div>
                 <div className="header_right">
+                    <button 
+                        onClick={() => setShowMembersPanel(!showMembersPanel)} 
+                        className="chat_settings_btn"
+                        title="Members"
+                    >
+                        <Users size={20} />
+                    </button>
                     <button 
                         onClick={() => setIsChatSettingsOpen(true)} 
                         className="chat_settings_btn"
@@ -519,6 +528,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 }}
                 onCancel={() => setIsChatSettingsOpen(false)}
             />
+
+            {showMembersPanel && activeChat && (
+                <ChatMembersPanel
+                    chatId={activeChat.id}
+                    serverUrl={settings.serverUrl}
+                    token={token || ''}
+                    onClose={() => setShowMembersPanel(false)}
+                />
+            )}
         </div>
     );
 };

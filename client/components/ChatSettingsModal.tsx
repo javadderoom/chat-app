@@ -1,8 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Settings, X, Image as ImageIcon, Upload } from 'lucide-react';
-import { Chat } from '../types';
+import { Settings, X, Image as ImageIcon, Upload, UserPlus, Trash2 } from 'lucide-react';
+import { Chat, UserInfo } from '../types';
 import './ChatSettingsModal.css';
+
+interface ChatMember {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+    role: string;
+    joinedAt: string;
+}
 
 interface ChatSettingsModalProps {
     isOpen: boolean;
@@ -27,15 +36,85 @@ export const ChatSettingsModal: React.FC<ChatSettingsModalProps> = ({
     const [isUploading, setIsUploading] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    const [members, setMembers] = useState<ChatMember[]>([]);
+    const [newMemberUsername, setNewMemberUsername] = useState('');
+    const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+    const [error, setError] = useState('');
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (chat) {
             setName(chat.name);
             setDescription(chat.description || '');
             setAvatarUrl(chat.imageUrl || '');
             setSelectedFile(null);
+            setError('');
+            fetchMembers();
         }
-    }, [chat]);
+    }, [chat, token, serverUrl]);
+
+    const fetchMembers = async () => {
+        if (!chat) return;
+        setIsLoadingMembers(true);
+        try {
+            const response = await fetch(`${serverUrl}/api/chats/${chat.id}/members`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setMembers(data);
+            }
+        } catch (err) {
+            console.error('Error fetching members:', err);
+        } finally {
+            setIsLoadingMembers(false);
+        }
+    };
+
+    const handleAddMember = async (e: React.FormEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!chat || !newMemberUsername.trim()) return;
+        
+        setError('');
+        try {
+            const response = await fetch(`${serverUrl}/api/chats/${chat.id}/members`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username: newMemberUsername.trim() })
+            });
+            
+            if (response.ok) {
+                setNewMemberUsername('');
+                fetchMembers();
+            } else {
+                const data = await response.json();
+                setError(data.error || 'Failed to add member');
+            }
+        } catch (err) {
+            setError('Failed to add member');
+        }
+    };
+
+    const handleRemoveMember = async (userId: string) => {
+        if (!chat) return;
+        
+        try {
+            const response = await fetch(`${serverUrl}/api/chats/${chat.id}/members/${userId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (response.ok) {
+                fetchMembers();
+            }
+        } catch (err) {
+            console.error('Error removing member:', err);
+        }
+    };
 
     const getPreviewUrl = () => {
         if (selectedFile) {
@@ -160,6 +239,54 @@ export const ChatSettingsModal: React.FC<ChatSettingsModalProps> = ({
                                 placeholder="Enter chat description (optional)"
                                 rows={3}
                             />
+                        </div>
+
+                        <div className="form_group">
+                            <label>Members</label>
+                            {isLoadingMembers ? (
+                                <div className="members_loading">Loading members...</div>
+                            ) : (
+                                <div className="members_list">
+                                    {members.map(member => (
+                                        <div key={member.id} className="member_item">
+                                            <div className="member_avatar">
+                                                {member.avatarUrl ? (
+                                                    <img src={member.avatarUrl} alt="" />
+                                                ) : (
+                                                    member.username.charAt(0).toUpperCase()
+                                                )}
+                                            </div>
+                                            <div className="member_info">
+                                                <span className="member_name">{member.displayName || member.username}</span>
+                                                <span className="member_username">@{member.username}</span>
+                                            </div>
+                                            <span className="member_role">{member.role}</span>
+                                            {member.role !== 'admin' && (
+                                                <button
+                                                    className="member_remove_btn"
+                                                    onClick={() => handleRemoveMember(member.id)}
+                                                    title="Remove member"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            <div onSubmit={handleAddMember} className="add_member_form">
+                                <input
+                                    type="text"
+                                    value={newMemberUsername}
+                                    onChange={e => setNewMemberUsername(e.target.value)}
+                                    placeholder="Add member by username"
+                                />
+                                <button type="button" disabled={!newMemberUsername.trim()} onClick={handleAddMember}>
+                                    <UserPlus size={16} />
+                                </button>
+                            </div>
+                            {error && <div className="member_error">{error}</div>}
                         </div>
                     </div>
                     <div className="modal_footer">

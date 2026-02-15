@@ -21,7 +21,7 @@ interface ChatListProps {
     activeChatId: string | null;
     setActiveChatId: (id: string) => void;
     status: string;
-    createChat: (name: string, description: string) => void;
+    createChat: (name: string, description: string, isPrivate?: boolean) => void;
     setShowSidebar: (show: boolean) => void;
     onOpenSettings: () => void;
     user?: User;
@@ -42,13 +42,15 @@ export const ChatList: React.FC<ChatListProps> = ({
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatName, setNewChatName] = useState('');
     const [newChatDesc, setNewChatDesc] = useState('');
+    const [newChatPrivate, setNewChatPrivate] = useState(false);
 
     const handleCreateChat = (e: React.FormEvent) => {
         e.preventDefault();
         if (newChatName.trim()) {
-            createChat(newChatName.trim(), newChatDesc.trim());
+            createChat(newChatName.trim(), newChatDesc.trim(), newChatPrivate);
             setNewChatName('');
             setNewChatDesc('');
+            setNewChatPrivate(false);
             setShowNewChatModal(false);
         }
     };
@@ -153,6 +155,16 @@ export const ChatList: React.FC<ChatListProps> = ({
                                     onChange={e => setNewChatDesc(e.target.value)}
                                     placeholder="Broadcast details..."
                                 />
+                            </div>
+                            <div className="form_group checkbox_group">
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={newChatPrivate}
+                                        onChange={e => setNewChatPrivate(e.target.checked)}
+                                    />
+                                    <span>Private (only invited members can see)</span>
+                                </label>
                             </div>
                             <div className="modal_actions">
                                 <button type="button" onClick={() => setShowNewChatModal(false)} className="cancel_button">Abort</button>

@@ -4,8 +4,8 @@ const path = require('path');
 const { Server } = require("socket.io");
 const cors = require('cors');
 const { db, pool } = require('./db/index');
-const { messages, chats, users } = require('./db/schema');
-const { desc, eq, ne, and } = require('drizzle-orm');
+const { messages, chats, users, chatMembers } = require('./db/schema');
+const { desc, eq, and, or, sql, exists } = require('drizzle-orm');
 const { verifyToken } = require('./middleware/auth');
 const uploadRoutes = require('./routes/upload');
 const authRoutes = require('./routes/auth');
@@ -49,7 +49,7 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   // Handle joining a specific chat room
-  socket.on('joinChat', (chatId) => {
+  socket.on('joinChat', async (chatId) => {
     if (chatId) {
       // Leave all other chat rooms first
       // Copy rooms to array to avoid mutation during iteration
@@ -57,6 +57,35 @@ io.on('connection', (socket) => {
       for (const room of currentRooms) {
         if (room !== socket.id) {
           socket.leave(room);
+        }
+      }
+
+      // Check if user is already a member
+      const existingMember = await db
+        .select()
+        .from(chatMembers)
+        .where(and(
+          eq(chatMembers.chatId, chatId),
+          eq(chatMembers.userId, userId)
+        ))
+        .limit(1);
+
+      // If not a member, check if chat is public and add them
+      if (existingMember.length === 0) {
+        const [chat] = await db
+          .select()
+          .from(chats)
+          .where(eq(chats.id, chatId))
+          .limit(1);
+
+        if (chat && !chat.isPrivate) {
+          // Auto-add to public chat
+          await db.insert(chatMembers).values({
+            chatId,
+            userId,
+            role: 'member'
+          });
+          console.log(`Auto-added user ${username} to public chat ${chatId}`);
         }
       }
 
@@ -327,15 +356,23 @@ io.on('connection', (socket) => {
 
   // Handle Chat Creation
   socket.on('createChat', async (data) => {
-    const { name, description, imageUrl } = data;
+    const { name, description, imageUrl, isPrivate } = data;
     if (!name) return;
 
     try {
       const [newChat] = await db.insert(chats).values({
         name,
         description: description || null,
-        imageUrl: imageUrl || null
+        imageUrl: imageUrl || null,
+        isPrivate: isPrivate || false
       }).returning();
+
+      // Add creator as admin member
+      await db.insert(chatMembers).values({
+        chatId: newChat.id,
+        userId: socket.userId,
+        role: 'admin'
+      });
 
       console.log('New chat created:', newChat.id);
       io.emit('chatCreated', newChat);
@@ -434,14 +471,200 @@ app.get('/api/messages', verifyToken, async (req, res) => {
   }
 });
 
-// API endpoint to get all chats (protected)
+// API endpoint to get chats for current user (protected)
 app.get('/api/chats', verifyToken, async (req, res) => {
   try {
-    const allChats = await db.select().from(chats).orderBy(desc(chats.lastMessageAt));
-    res.json(allChats);
+    const userId = req.userId;
+    
+    // Get chats where user is a member OR chat is not private
+    const userChats = await db
+      .select({
+        chat: chats,
+        member: chatMembers
+      })
+      .from(chatMembers)
+      .innerJoin(chats, eq(chats.id, chatMembers.chatId))
+      .where(eq(chatMembers.userId, userId));
+    
+    // Also get non-private chats
+    const publicChats = await db
+      .select()
+      .from(chats)
+      .where(eq(chats.isPrivate, false));
+    
+    // Combine and remove duplicates
+    const memberChats = userChats.map(({ chat }) => chat);
+    const allChats = [...memberChats, ...publicChats];
+    const uniqueChats = Array.from(new Map(allChats.map(c => [c.id, c])).values());
+    
+    // Sort by lastMessageAt
+    const result = uniqueChats.sort((a, b) => 
+      new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+    );
+    
+    res.json(result);
   } catch (error) {
     console.error('Error fetching chats:', error);
     res.status(500).json({ error: 'Failed to fetch chats' });
+  }
+});
+
+// API endpoint to get chat members
+app.get('/api/chats/:chatId/members', verifyToken, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.userId;
+
+    // Check if user is a member of this chat
+    const membership = await db
+      .select()
+      .from(chatMembers)
+      .where(and(
+        eq(chatMembers.chatId, chatId),
+        eq(chatMembers.userId, userId)
+      ))
+      .limit(1);
+
+    if (membership.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this chat' });
+    }
+
+    // Get all members
+    const members = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        avatarUrl: users.avatarUrl,
+        role: chatMembers.role,
+        joinedAt: chatMembers.joinedAt
+      })
+      .from(chatMembers)
+      .innerJoin(users, eq(users.id, chatMembers.userId))
+      .where(eq(chatMembers.chatId, chatId));
+
+    res.json(members);
+  } catch (error) {
+    console.error('Error fetching chat members:', error);
+    res.status(500).json({ error: 'Failed to fetch chat members' });
+  }
+});
+
+// API endpoint to add member to chat
+app.post('/api/chats/:chatId/members', verifyToken, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { username } = req.body;
+    const userId = req.userId;
+
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    // Check if current user is admin of this chat
+    const membership = await db
+      .select()
+      .from(chatMembers)
+      .where(and(
+        eq(chatMembers.chatId, chatId),
+        eq(chatMembers.userId, userId),
+        eq(chatMembers.role, 'admin')
+      ))
+      .limit(1);
+
+    if (membership.length === 0) {
+      return res.status(403).json({ error: 'Only admins can add members' });
+    }
+
+    // Find user to add
+    const [targetUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username.toLowerCase()))
+      .limit(1);
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if already a member
+    const existingMember = await db
+      .select()
+      .from(chatMembers)
+      .where(and(
+        eq(chatMembers.chatId, chatId),
+        eq(chatMembers.userId, targetUser.id)
+      ))
+      .limit(1);
+
+    if (existingMember.length > 0) {
+      return res.status(400).json({ error: 'User is already a member' });
+    }
+
+    // Add user to chat
+    await db.insert(chatMembers).values({
+      chatId,
+      userId: targetUser.id,
+      role: 'member'
+    });
+
+    res.json({ success: true, message: 'User added to chat' });
+  } catch (error) {
+    console.error('Error adding chat member:', error);
+    res.status(500).json({ error: 'Failed to add chat member' });
+  }
+});
+
+// API endpoint to remove member from chat
+app.delete('/api/chats/:chatId/members/:userId', verifyToken, async (req, res) => {
+  try {
+    const { chatId, userId } = req.params;
+    const currentUserId = req.userId;
+
+    // Check if current user is admin or removing themselves
+    const membership = await db
+      .select()
+      .from(chatMembers)
+      .where(and(
+        eq(chatMembers.chatId, chatId),
+        eq(chatMembers.userId, currentUserId)
+      ))
+      .limit(1);
+
+    if (membership.length === 0) {
+      return res.status(403).json({ error: 'Not a member of this chat' });
+    }
+
+    // Only admins can remove others, users can remove themselves
+    if (membership[0].role !== 'admin' && currentUserId !== userId) {
+      return res.status(403).json({ error: 'Cannot remove other members' });
+    }
+
+    // Cannot remove admin
+    const [targetMember] = await db
+      .select()
+      .from(chatMembers)
+      .where(and(
+        eq(chatMembers.chatId, chatId),
+        eq(chatMembers.userId, userId)
+      ))
+      .limit(1);
+
+    if (targetMember?.role === 'admin') {
+      return res.status(403).json({ error: 'Cannot remove admin' });
+    }
+
+    await db
+      .delete(chatMembers)
+      .where(and(
+        eq(chatMembers.chatId, chatId),
+        eq(chatMembers.userId, userId)
+      ));
+
+    res.json({ success: true, message: 'User removed from chat' });
+  } catch (error) {
+    console.error('Error removing chat member:', error);
+    res.status(500).json({ error: 'Failed to remove chat member' });
   }
 });
 
@@ -494,15 +717,59 @@ server.listen(PORT, '0.0.0.0', async () => {
     process.exit(1);
   }
 
+  // Run migrations
+  try {
+    console.log('Running database migrations...');
+    
+    // Add is_private column if not exists
+    await pool.query(`
+      ALTER TABLE chats ADD COLUMN IF NOT EXISTS is_private BOOLEAN DEFAULT false NOT NULL
+    `).catch(() => {}); // Ignore if already exists
+    
+    // Create chat_members table if not exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chat_members (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        chat_id UUID REFERENCES chats(id) ON DELETE CASCADE NOT NULL,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        role VARCHAR(20) DEFAULT 'member' NOT NULL,
+        joined_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        UNIQUE(chat_id, user_id)
+      )
+    `).catch(() => {}); // Ignore if already exists
+    
+    // Create indexes if not exists
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_chat_members_chat_id ON chat_members(chat_id)
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_chat_members_user_id ON chat_members(user_id)
+    `).catch(() => {});
+    
+    console.log('Migrations completed');
+  } catch (error) {
+    console.warn('Migration warning:', error.message);
+  }
+
   // Ensure default Global chat exists
   try {
     const existingChats = await db.select().from(chats).limit(1);
     if (existingChats.length === 0) {
       console.log('Creating default Global chat...');
-      await db.insert(chats).values({
+      const [newChat] = await db.insert(chats).values({
         name: 'Global',
         description: 'The combined frequency of all transmissions.'
-      });
+      }).returning();
+      
+      // Get all users and add them as members
+      const allUsers = await db.select().from(users);
+      for (const user of allUsers) {
+        await db.insert(chatMembers).values({
+          chatId: newChat.id,
+          userId: user.id,
+          role: 'admin'
+        }).catch(() => {}); // Ignore duplicates
+      }
     }
   } catch (error) {
     console.warn('Could not create default chat. It might already exist or table not ready.', error.message);

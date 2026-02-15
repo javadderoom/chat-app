@@ -22,6 +22,16 @@ const chats = pgTable('chats', {
   imageUrl: text('image_url'),
   lastMessageAt: timestamp('last_message_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  isPrivate: boolean('is_private').default(false).notNull(),
+});
+
+// Chat members table - links users to chats
+const chatMembers = pgTable('chat_members', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  chatId: uuid('chat_id').references(() => chats.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  role: varchar('role', { length: 20 }).default('member').notNull(), // 'admin' or 'member'
+  joinedAt: timestamp('joined_at').defaultNow().notNull(),
 });
 
 // Messages table with multimedia support
@@ -59,5 +69,6 @@ module.exports = {
   users,
   chats,
   messages,
+  chatMembers,
   messageTypeEnum,
 };

@@ -31,6 +31,7 @@ export interface Chat {
   imageUrl?: string;
   lastMessageAt?: string | number;
   createdAt: string | number;
+  isPrivate?: boolean;
 }
 
 export enum ConnectionStatus {

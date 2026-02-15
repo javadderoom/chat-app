@@ -187,9 +187,9 @@ export const useChatActions = ({
         socket.emit('deleteMessage', { id });
     }, [socket, setMessages]);
 
-    const createChat = useCallback((name: string, description?: string) => {
+    const createChat = useCallback((name: string, description?: string, isPrivate?: boolean) => {
         if (!socket || !socket.connected) return;
-        socket.emit('createChat', { name, description });
+        socket.emit('createChat', { name, description, isPrivate });
     }, [socket]);
 
     const toggleReaction = useCallback((messageId: string, emoji: string) => {
