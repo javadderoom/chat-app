@@ -73,7 +73,10 @@ server/
   lastMessageAt: timestamp,
   createdAt: timestamp,
   isPrivate: boolean DEFAULT false,
-  isDm: boolean DEFAULT false
+  isDm: boolean DEFAULT false,
+  pinnedMessageId: uuid (FK -> messages.id, set null on delete),
+  pinnedByUserId: uuid (FK -> users.id, set null on delete),
+  pinnedAt: timestamp
 }
 ```
 
@@ -166,7 +169,7 @@ jwt.sign(
 |--------|----------|------|-------------|
 | GET | `/api/messages` | Yes | Get messages (50 recent) |
 | GET | `/api/messages?chatId=` | Yes | Get messages for chat |
-| GET | `/api/chats` | Yes | Get user's chat rooms (members + public) |
+| GET | `/api/chats` | Yes | Get user's chat rooms (members + public), includes pinned message summary |
 | POST | `/api/chats/dm` | Yes | Find or create DM chat |
 | DELETE | `/api/chats/:chatId` | Yes | Delete chat (admin only) |
 | GET | `/api/chats/:chatId/members` | Yes | Get chat members |
@@ -186,6 +189,8 @@ jwt.sign(
 | `toggleReaction` | `{ messageId, emoji, username }` | React to message |
 | `createChat` | `{ name, description, imageUrl }` | Create chat room |
 | `updateChat` | `{ id, name, description, imageUrl }` | Update chat |
+| `pinMessage` | `{ chatId, messageId }` | Pin a message in a chat |
+| `unpinMessage` | `{ chatId }` | Remove current pinned message from a chat |
 
 ### Outgoing Events (Server → Client)
 
@@ -197,6 +202,7 @@ jwt.sign(
 | `reactionUpdated` | `{ messageId, reactions }` | Reactions changed |
 | `chatCreated` | Chat object | New chat room |
 | `chatUpdated` | Chat object | Chat updated |
+| `chatPinnedUpdated` | `{ chatId, pinnedMessageId, pinnedByUserId, pinnedAt, pinnedMessage }` | Pinned state changed |
 | `chatDeleted` | `{ chatId }` | Chat deleted |
 
 ## Message Handling Flow
@@ -281,6 +287,7 @@ const onlineUsers = new Map();
 - `isDeleted` flag set to true
 - Content cleared for privacy
 - Media references removed
+- If the deleted message is pinned, the chat is auto-unpinned
 
 ### Reactions
 - Stored as JSONB: `{ "😊": ["user1", "user2"], "👍": ["user3"] }`
@@ -293,3 +300,9 @@ const onlineUsers = new Map();
 - DM name is sorted usernames (e.g., "alice & bob")
 - Both users are admins in DMs
 - Chat deletion restricted to admins (Global chat cannot be deleted)
+
+### Pinned Messages
+- Each chat can have at most one pinned message
+- Pinning/unpinning is validated against chat membership
+- Pin updates are broadcast via `chatPinnedUpdated`
+- Chat list API includes a `pinnedMessage` summary for UI banner rendering

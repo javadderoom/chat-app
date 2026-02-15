@@ -24,6 +24,19 @@ export interface Message {
   forwardedFrom?: string; // username of the original sender
 }
 
+export interface PinnedMessageSummary {
+  id: string;
+  chatId?: string;
+  userId?: string;
+  sender: string;
+  displayName?: string;
+  text: string;
+  messageType?: Message['messageType'];
+  mediaUrl?: string;
+  stickerId?: string;
+  timestamp: string | number;
+}
+
 export interface Chat {
   id: string;
   name: string;
@@ -32,6 +45,11 @@ export interface Chat {
   lastMessageAt?: string | number;
   createdAt: string | number;
   isPrivate?: boolean;
+  isDm?: boolean;
+  pinnedMessageId?: string | null;
+  pinnedByUserId?: string | null;
+  pinnedAt?: string | number | null;
+  pinnedMessage?: PinnedMessageSummary | null;
 }
 
 export enum ConnectionStatus {

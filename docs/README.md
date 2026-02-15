@@ -25,10 +25,12 @@ Blackout Chat is a real-time messaging app designed with a dark, terminal-inspir
 - **Reply to messages** - Reference specific messages in conversations
 - **Forward messages** - Share messages between chats
 - **Reactions** - React to messages with emojis
+- **Pinned messages** - Pin important messages to the top of each chat
 
 ### Message Management
 - **Edit messages** - Modify your sent messages
 - **Delete messages** - Remove messages (soft-delete keeps history)
+- **Unpin messages** - Remove previously pinned chat highlights
 - **Message status** - See when messages are modified or deleted
 
 ### User Experience

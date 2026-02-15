@@ -286,6 +286,57 @@ header {
     margin: 0;
 }
 
+.pinned_banner {
+    margin: 10px 16px 0;
+    border: 1px solid rgba(88, 166, 255, 0.35);
+    background: rgba(88, 166, 255, 0.1);
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #c9d1d9;
+    cursor: pointer;
+}
+
+.pinned_banner_content {
+    min-width: 0;
+    flex: 1;
+}
+
+.pinned_banner_label {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    color: #58a6ff;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.pinned_banner_content p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pinned_banner_unpin {
+    border: none;
+    background: transparent;
+    color: #8b949e;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.pinned_banner_unpin:hover {
+    background: rgba(248, 81, 73, 0.15);
+    color: #f85149;
+}
+
 
 main {
     display: flex;
@@ -395,6 +446,16 @@ main .signal {
     margin-bottom: 4px;
     font-style: italic;
     opacity: 0.8;
+}
+
+.pinned_label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #58a6ff;
+    margin-bottom: 4px;
+    font-weight: 600;
 }
 
 .media_content {

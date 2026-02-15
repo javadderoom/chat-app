@@ -180,6 +180,26 @@ export const useSocketEvents = ({
             ));
         };
 
+        const handleChatPinnedUpdated = (data: {
+            chatId: string;
+            pinnedMessageId: string | null;
+            pinnedByUserId: string | null;
+            pinnedAt: string | null;
+            pinnedMessage: Chat['pinnedMessage'] | null;
+        }) => {
+            setChats(prev => prev.map(chat =>
+                chat.id === data.chatId
+                    ? {
+                        ...chat,
+                        pinnedMessageId: data.pinnedMessageId,
+                        pinnedByUserId: data.pinnedByUserId,
+                        pinnedAt: data.pinnedAt,
+                        pinnedMessage: data.pinnedMessage
+                    }
+                    : chat
+            ));
+        };
+
         socket.on('connect', handleConnect);
         socket.on('connect_error', handleConnectError);
         socket.on('disconnect', handleDisconnect);
@@ -189,6 +209,7 @@ export const useSocketEvents = ({
         socket.on('reactionUpdated', handleReactionUpdated);
         socket.on('chatCreated', handleChatCreated);
         socket.on('chatUpdated', handleChatUpdated);
+        socket.on('chatPinnedUpdated', handleChatPinnedUpdated);
 
         return () => {
             socket.off('connect', handleConnect);
@@ -200,6 +221,7 @@ export const useSocketEvents = ({
             socket.off('reactionUpdated', handleReactionUpdated);
             socket.off('chatCreated', handleChatCreated);
             socket.off('chatUpdated', handleChatUpdated);
+            socket.off('chatPinnedUpdated', handleChatPinnedUpdated);
         };
     }, [socket, settingsRef, activeChatIdRef, setMessages, setChats, setStatus, addMessage]);
 };

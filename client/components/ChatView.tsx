@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Menu, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare, Users } from 'lucide-react';
+import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Menu, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare, Users, Pin } from 'lucide-react';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { StickerPicker } from './StickerPicker';
 import { MessageBubble } from './MessageBubble';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
-import { UserSettings, ConnectionStatus, Message, UserInfo } from '../types';
+import { UserSettings, ConnectionStatus, Message, UserInfo, PinnedMessageSummary } from '../types';
 import './ChatView.css';
 
 import { ConfirmModal } from './ConfirmModal';
@@ -18,6 +18,10 @@ interface Chat {
     name: string;
     description?: string;
     imageUrl?: string;
+    pinnedMessageId?: string | null;
+    pinnedByUserId?: string | null;
+    pinnedAt?: string | number | null;
+    pinnedMessage?: PinnedMessageSummary | null;
 }
 
 interface User {
@@ -44,6 +48,8 @@ interface ChatViewProps {
     sendSticker: (stickerId: string, replyToId?: string) => void;
     updateChat: (chatId: string, data: { name?: string; description?: string; imageUrl?: string }) => void;
     deleteChat: (chatId: string) => void;
+    pinMessage: (messageId: string) => void;
+    unpinMessage: (chatId?: string) => void;
     setActiveChatId: (chatId: string) => void;
     fetchChats: () => Promise<void>;
     chats: Chat[];
@@ -69,6 +75,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     sendSticker,
     updateChat,
     deleteChat,
+    pinMessage,
+    unpinMessage,
     setActiveChatId,
     fetchChats,
     chats,
@@ -103,6 +111,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
         if (!text) return '';
         return text.length > length ? text.substring(0, length) + '...' : text;
     };
+
+    const getPinnedPreviewText = (message?: Message | PinnedMessageSummary | null) => {
+        if (!message) return 'Pinned message';
+        if (message.messageType === 'sticker') return '[STICKER]';
+        if (message.messageType === 'image') return '[IMAGE]';
+        if (message.messageType === 'video') return '[VIDEO]';
+        if (message.messageType === 'audio') return '[AUDIO]';
+        return message.text || 'Pinned message';
+    };
+
+    const activePinnedMessage = activeChat?.pinnedMessageId
+        ? (messages.find(m => m.id === activeChat.pinnedMessageId) || activeChat.pinnedMessage || null)
+        : null;
 
     useEffect(() => {
         // Only scroll if a new message was added (length increased)
@@ -331,6 +352,36 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </div>
             </header>
 
+            {activeChat?.pinnedMessageId && (
+                <div
+                    className="pinned_banner"
+                    onClick={() => {
+                        if (activeChat.pinnedMessageId) {
+                            scrollToMessage(activeChat.pinnedMessageId);
+                        }
+                    }}
+                >
+                    <Pin size={14} />
+                    <div className="pinned_banner_content">
+                        <span className="pinned_banner_label">Pinned message</span>
+                        <p>{truncateText(getPinnedPreviewText(activePinnedMessage), 80)}</p>
+                    </div>
+                    <button
+                        type="button"
+                        className="pinned_banner_unpin"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (activeChat?.id) {
+                                unpinMessage(activeChat.id);
+                            }
+                        }}
+                        title="Unpin message"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+
             <main>
                 {messages.length === 0 && (
                     <div className="signal">
@@ -366,6 +417,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             onDirectMessage={handleDirectMessage}
                             onEdit={startEditing}
                             onDelete={handleDelete}
+                            pinnedMessageId={activeChat?.pinnedMessageId || null}
+                            onPin={pinMessage}
+                            onUnpin={() => unpinMessage(activeChat?.id)}
                             scrollToMessage={scrollToMessage}
                             truncateText={truncateText}
                             onProfileClick={setProfileUser}

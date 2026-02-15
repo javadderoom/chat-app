@@ -120,6 +120,7 @@ Main chat interface with:
 - Reply/forward modals
 - Message editing
 - Reactions
+- Pinned message banner with jump-to-message and unpin action
 - Voice recording
 
 ### useSocketEvents.ts
@@ -131,6 +132,7 @@ Handles incoming Socket.IO events:
 - `reactionUpdated` - Message reactions
 - `chatCreated` - New chat room
 - `chatUpdated` - Chat info changed
+- `chatPinnedUpdated` - Chat pinned message state changed
 
 ### useChatActions.ts
 
@@ -145,6 +147,8 @@ Provides action methods:
 - `sendSticker()` - Send sticker
 - `updateChat()` - Update chat info
 - `deleteChat()` - Delete chat (admin only)
+- `pinMessage()` - Pin a message in the active chat
+- `unpinMessage()` - Remove the pinned message in a chat
 
 ## Type Definitions
 
@@ -188,6 +192,10 @@ interface Chat {
   createdAt: string | number;
   isPrivate?: boolean;
   isDm?: boolean;
+  pinnedMessageId?: string | null;
+  pinnedByUserId?: string | null;
+  pinnedAt?: string | number | null;
+  pinnedMessage?: PinnedMessageSummary | null;
 }
 ```
 
@@ -302,3 +310,4 @@ Configured for Liara cloud platform:
 - Create public or private chats
 - Edit chat name, description, avatar
 - Delete chat (admin only, Global cannot be deleted)
+- Pin/unpin important messages per chat

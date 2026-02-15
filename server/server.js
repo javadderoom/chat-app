@@ -37,6 +37,48 @@ const io = new Server(server, {
 
 io.use(verifySocket);
 
+async function getPinnedMessage(chatId, pinnedMessageId) {
+  if (!chatId || !pinnedMessageId) return null;
+
+  const result = await db
+    .select({
+      id: messages.id,
+      chatId: messages.chatId,
+      userId: messages.userId,
+      username: messages.username,
+      displayName: users.displayName,
+      content: messages.content,
+      messageType: messages.messageType,
+      mediaUrl: messages.mediaUrl,
+      stickerId: messages.stickerId,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .leftJoin(users, eq(messages.userId, users.id))
+    .where(and(
+      eq(messages.id, pinnedMessageId),
+      eq(messages.chatId, chatId),
+      eq(messages.isDeleted, false)
+    ))
+    .limit(1);
+
+  if (result.length === 0) return null;
+
+  const pinned = result[0];
+  return {
+    id: pinned.id,
+    chatId: pinned.chatId,
+    userId: pinned.userId,
+    sender: pinned.username,
+    displayName: pinned.displayName || pinned.username,
+    text: pinned.content || '',
+    messageType: pinned.messageType,
+    mediaUrl: pinned.mediaUrl,
+    stickerId: pinned.stickerId,
+    timestamp: pinned.createdAt,
+  };
+}
+
 io.on('connection', (socket) => {
   const userId = socket.userId;
   const username = socket.user?.username;
@@ -258,7 +300,7 @@ io.on('connection', (socket) => {
 
       if (updateResult.length > 0) {
         const updatedMessage = updateResult[0];
-        console.log('✓ Message updated in DB:', updatedMessage.id);
+        console.log('Message updated in DB:', updatedMessage.id);
         // Broadcast update to all clients
         io.emit('messageUpdated', {
           id: updatedMessage.id,
@@ -266,12 +308,12 @@ io.on('connection', (socket) => {
           updatedAt: updatedMessage.updatedAt,
         });
       } else {
-        console.warn('⚠ No message found in DB with ID:', id);
+        console.warn('No message found in DB with ID:', id);
         // If no row was updated, it means the ID was not found
         // This is the primary indicator that the client is sending a tempId instead of a UUID
       }
     } catch (error) {
-      console.error('✗ CRITICAL ERROR editing message:', error);
+      console.error('CRITICAL ERROR editing message:', error);
     }
     console.log('--- DATABASE EDIT END ---');
   });
@@ -304,16 +346,46 @@ io.on('connection', (socket) => {
 
       if (deleteResult.length > 0) {
         const deletedMessage = deleteResult[0];
-        console.log('✓ Message soft-deleted in DB:', deletedMessage.id);
+        if (deletedMessage.chatId) {
+          const pinnedChat = await db
+            .select({ id: chats.id })
+            .from(chats)
+            .where(and(
+              eq(chats.id, deletedMessage.chatId),
+              eq(chats.pinnedMessageId, deletedMessage.id)
+            ))
+            .limit(1);
+
+          if (pinnedChat.length > 0) {
+            const [updatedChat] = await db
+              .update(chats)
+              .set({
+                pinnedMessageId: null,
+                pinnedByUserId: null,
+                pinnedAt: null
+              })
+              .where(eq(chats.id, deletedMessage.chatId))
+              .returning();
+
+            io.emit('chatPinnedUpdated', {
+              chatId: deletedMessage.chatId,
+              pinnedMessageId: updatedChat?.pinnedMessageId || null,
+              pinnedByUserId: updatedChat?.pinnedByUserId || null,
+              pinnedAt: updatedChat?.pinnedAt || null,
+              pinnedMessage: null
+            });
+          }
+        }
+        console.log('Message soft-deleted in DB:', deletedMessage.id);
         // Broadcast delete to all clients
         io.emit('messageDeleted', {
           id: deletedMessage.id,
         });
       } else {
-        console.warn('⚠ No message found in DB with ID:', id);
+        console.warn('No message found in DB with ID:', id);
       }
     } catch (error) {
-      console.error('✗ CRITICAL ERROR deleting message:', error);
+      console.error('CRITICAL ERROR deleting message:', error);
     }
     console.log('--- DATABASE DELETE END ---');
   });
@@ -403,6 +475,101 @@ io.on('connection', (socket) => {
       io.emit('chatUpdated', updatedChat);
     } catch (error) {
       console.error('Error updating chat:', error);
+    }
+  });
+
+  // Handle pinning a message in a chat
+  socket.on('pinMessage', async (data) => {
+    const { chatId, messageId } = data || {};
+    if (!chatId || !messageId || !userId) return;
+
+    try {
+      // User must be a member of the chat
+      const member = await db
+        .select({ id: chatMembers.id })
+        .from(chatMembers)
+        .where(and(
+          eq(chatMembers.chatId, chatId),
+          eq(chatMembers.userId, userId)
+        ))
+        .limit(1);
+
+      if (member.length === 0) return;
+
+      // Message must belong to chat and be active
+      const targetMessage = await db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(and(
+          eq(messages.id, messageId),
+          eq(messages.chatId, chatId),
+          eq(messages.isDeleted, false)
+        ))
+        .limit(1);
+
+      if (targetMessage.length === 0) return;
+
+      const [updatedChat] = await db
+        .update(chats)
+        .set({
+          pinnedMessageId: messageId,
+          pinnedByUserId: userId,
+          pinnedAt: new Date()
+        })
+        .where(eq(chats.id, chatId))
+        .returning();
+
+      const pinnedMessage = await getPinnedMessage(chatId, messageId);
+
+      io.emit('chatPinnedUpdated', {
+        chatId,
+        pinnedMessageId: updatedChat?.pinnedMessageId || null,
+        pinnedByUserId: updatedChat?.pinnedByUserId || null,
+        pinnedAt: updatedChat?.pinnedAt || null,
+        pinnedMessage
+      });
+    } catch (error) {
+      console.error('Error pinning message:', error);
+    }
+  });
+
+  // Handle removing a pinned message in a chat
+  socket.on('unpinMessage', async (data) => {
+    const { chatId } = data || {};
+    if (!chatId || !userId) return;
+
+    try {
+      // User must be a member of the chat
+      const member = await db
+        .select({ id: chatMembers.id })
+        .from(chatMembers)
+        .where(and(
+          eq(chatMembers.chatId, chatId),
+          eq(chatMembers.userId, userId)
+        ))
+        .limit(1);
+
+      if (member.length === 0) return;
+
+      const [updatedChat] = await db
+        .update(chats)
+        .set({
+          pinnedMessageId: null,
+          pinnedByUserId: null,
+          pinnedAt: null
+        })
+        .where(eq(chats.id, chatId))
+        .returning();
+
+      io.emit('chatPinnedUpdated', {
+        chatId,
+        pinnedMessageId: updatedChat?.pinnedMessageId || null,
+        pinnedByUserId: updatedChat?.pinnedByUserId || null,
+        pinnedAt: updatedChat?.pinnedAt || null,
+        pinnedMessage: null
+      });
+    } catch (error) {
+      console.error('Error unpinning message:', error);
     }
   });
 
@@ -498,10 +665,17 @@ app.get('/api/chats', verifyToken, async (req, res) => {
     const uniqueChats = Array.from(new Map(allChats.map(c => [c.id, c])).values());
     
     // Sort by lastMessageAt
-    const result = uniqueChats.sort((a, b) => 
+    const sortedChats = uniqueChats.sort((a, b) => 
       new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
     );
-    
+
+    const result = await Promise.all(
+      sortedChats.map(async (chat) => ({
+        ...chat,
+        pinnedMessage: await getPinnedMessage(chat.id, chat.pinnedMessageId)
+      }))
+    );
+
     res.json(result);
   } catch (error) {
     console.error('Error fetching chats:', error);
@@ -798,23 +972,23 @@ async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
     try {
       console.log(`Testing database connection (attempt ${attempt}/${maxRetries})...`);
       const result = await pool.query('SELECT NOW()');
-      console.log('✓ Database connection successful');
+      console.log('Database connection successful');
       console.log('  Database time:', result.rows[0].now);
 
       // Test that tables exist by trying to count messages
       try {
         const countResult = await pool.query('SELECT COUNT(*) FROM messages');
-        console.log('✓ Database tables are accessible');
+        console.log('Database tables are accessible');
         console.log('  Current message count:', countResult.rows[0].count);
       } catch (tableError) {
-        console.error('✗ Database tables not found:', tableError.message);
+        console.error('Database tables not found:', tableError.message);
         console.error('  Please ensure database schema is initialized');
         return false;
       }
 
       return true;
     } catch (error) {
-      console.error(`✗ Database connection failed (attempt ${attempt}/${maxRetries}):`, error.message);
+      console.error(`Database connection failed (attempt ${attempt}/${maxRetries}):`, error.message);
 
       if (attempt === maxRetries) {
         console.error('  Max retries reached. Please check:');
@@ -854,6 +1028,17 @@ server.listen(PORT, '0.0.0.0', async () => {
     await pool.query(`
       ALTER TABLE chats ADD COLUMN IF NOT EXISTS is_dm BOOLEAN DEFAULT false NOT NULL
     `).catch(() => {}); // Ignore if already exists
+
+    // Add pinned message metadata columns
+    await pool.query(`
+      ALTER TABLE chats ADD COLUMN IF NOT EXISTS pinned_message_id UUID REFERENCES messages(id) ON DELETE SET NULL
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE chats ADD COLUMN IF NOT EXISTS pinned_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE chats ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMP
+    `).catch(() => {});
     
     // Create chat_members table if not exists
     await pool.query(`
@@ -873,6 +1058,9 @@ server.listen(PORT, '0.0.0.0', async () => {
     `).catch(() => {});
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_chat_members_user_id ON chat_members(user_id)
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_chats_pinned_message_id ON chats(pinned_message_id)
     `).catch(() => {});
     
     console.log('Migrations completed');
@@ -916,3 +1104,4 @@ process.on('SIGTERM', async () => {
   await pool.end(); // close all DB connections 
   process.exit(0);
 });
+

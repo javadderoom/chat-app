@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Mic, Share2, Edit2, Trash2, Smile, MessageCircle } from 'lucide-react';
+import { Mic, Share2, Edit2, Trash2, Smile, MessageCircle, Pin, PinOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { AnimatedSticker } from './AnimatedSticker';
@@ -28,6 +28,9 @@ interface MessageBubbleProps {
     onDirectMessage: (username: string) => void;
     onEdit: (msg: Message) => void;
     onDelete: (id: string) => void;
+    pinnedMessageId?: string | null;
+    onPin: (id: string) => void;
+    onUnpin: () => void;
     scrollToMessage: (id: string) => void;
     truncateText: (text: string, length?: number) => string;
     onProfileClick?: (user: { username: string; displayName: string; avatarUrl?: string }) => void;
@@ -48,6 +51,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     onDirectMessage,
     onEdit,
     onDelete,
+    pinnedMessageId,
+    onPin,
+    onUnpin,
     scrollToMessage,
     truncateText,
     onProfileClick,
@@ -171,6 +177,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                         <span>Forward</span>
                                     </button>
 
+                                    {pinnedMessageId === msg.id ? (
+                                        <button
+                                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); onUnpin(); onMessageClick(e, msg); }}
+                                            className="menu_item"
+                                        >
+                                            <PinOff size={14} />
+                                            <span>Unpin</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); onPin(msg.id); onMessageClick(e, msg); }}
+                                            className="menu_item"
+                                        >
+                                            <Pin size={14} />
+                                            <span>Pin</span>
+                                        </button>
+                                    )}
+
                                     {!msg.isMe && (
                                         <button
                                             onClick={(e: React.MouseEvent) => { e.stopPropagation(); onDirectMessage(msg.sender); }}
@@ -209,6 +233,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             <div className="forwarded_label">
                                 <Share2 size={10} />
                                 <span>Forwarded from {msg.displayName}</span>
+                            </div>
+                        )}
+
+                        {pinnedMessageId === msg.id && (
+                            <div className="pinned_label">
+                                <Pin size={10} />
+                                <span>Pinned</span>
                             </div>
                         )}
 

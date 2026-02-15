@@ -279,6 +279,42 @@ export const useChatActions = ({
         }
     }, [setChats, setActiveChatId, settingsRef, tokenRef]);
 
+    const pinMessage = useCallback((messageId: string) => {
+        if (!socket || !socket.connected || !activeChatId || !messageId) return;
+
+        setChats(prevChats => prevChats.map(chat =>
+            chat.id === activeChatId
+                ? {
+                    ...chat,
+                    pinnedMessageId: messageId,
+                    pinnedByUserId: userRef.current?.id || null,
+                    pinnedAt: Date.now()
+                }
+                : chat
+        ));
+
+        socket.emit('pinMessage', { chatId: activeChatId, messageId });
+    }, [socket, activeChatId, setChats, userRef]);
+
+    const unpinMessage = useCallback((chatId?: string) => {
+        const targetChatId = chatId || activeChatId;
+        if (!socket || !socket.connected || !targetChatId) return;
+
+        setChats(prevChats => prevChats.map(chat =>
+            chat.id === targetChatId
+                ? {
+                    ...chat,
+                    pinnedMessageId: null,
+                    pinnedByUserId: null,
+                    pinnedAt: null,
+                    pinnedMessage: null
+                }
+                : chat
+        ));
+
+        socket.emit('unpinMessage', { chatId: targetChatId });
+    }, [socket, activeChatId, setChats]);
+
     const sendSticker = useCallback((stickerId: string, replyToId?: string) => {
         if (!stickerId) return;
         const username = settingsRef.current.username?.trim() || 'Anonymous';
@@ -342,6 +378,8 @@ export const useChatActions = ({
         sendSticker,
         clearMessages,
         updateChat,
-        deleteChat
+        deleteChat,
+        pinMessage,
+        unpinMessage
     };
 };

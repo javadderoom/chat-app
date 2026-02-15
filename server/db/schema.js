@@ -24,6 +24,9 @@ const chats = pgTable('chats', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   isPrivate: boolean('is_private').default(false).notNull(),
   isDm: boolean('is_dm').default(false).notNull(),
+  pinnedMessageId: uuid('pinned_message_id').references(() => messages.id, { onDelete: 'set null' }),
+  pinnedByUserId: uuid('pinned_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  pinnedAt: timestamp('pinned_at'),
 });
 
 // Chat members table - links users to chats

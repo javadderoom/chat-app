@@ -16,4 +16,6 @@ export interface DbMessage {
     isForwarded?: boolean;
     forwardedFrom?: string;
     stickerId?: string;
+    displayName?: string;
+    updatedAt?: string | Date;
 }
