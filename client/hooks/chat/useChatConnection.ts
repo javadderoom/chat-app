@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Message, ConnectionStatus, UserSettings, Chat } from '../../types';
+import { Message, ConnectionStatus, UserSettings, Chat, UserInfo } from '../../types';
 import { DbMessage } from './types';
 import { useSocketEvents } from './useSocketEvents';
 import { useChatActions } from './useChatActions';
@@ -18,7 +18,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
     const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
     const [socket, setSocket] = useState<Socket | null>(null);
-    const [users, setUsers] = useState<Record<string, { avatarUrl?: string; displayName: string }>>({});
+    const [users, setUsers] = useState<Record<string, UserInfo>>({});
 
     const settingsRef = useRef(settings);
     useEffect(() => {
@@ -110,7 +110,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
             });
             if (response.ok) {
                 const data: { username: string; avatarUrl?: string; displayName: string }[] = await response.json();
-                const usersMap: Record<string, { avatarUrl?: string; displayName: string }> = {};
+                const usersMap: Record<string, UserInfo> = {};
                 data.forEach(u => {
                     usersMap[u.username.toLowerCase()] = {
                         avatarUrl: u.avatarUrl,

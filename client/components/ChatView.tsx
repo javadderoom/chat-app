@@ -4,7 +4,7 @@ import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { StickerPicker } from './StickerPicker';
 import { MessageBubble } from './MessageBubble';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
-import { UserSettings, ConnectionStatus, Message } from '../types';
+import { UserSettings, ConnectionStatus, Message, UserInfo } from '../types';
 import './ChatView.css';
 
 import { ConfirmModal } from './ConfirmModal';
@@ -44,7 +44,7 @@ interface ChatViewProps {
     chats: Chat[];
     user?: User;
     token: string | null;
-    users: Record<string, { avatarUrl?: string; displayName: string }>;
+    users: Record<string, UserInfo>;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -88,7 +88,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const prevMessagesLengthRef = useRef(messages.length);
-    const userAvatars: Record<string, string> = {};
 
     const truncateText = (text: string, length: number = 20) => {
         if (!text) return '';
@@ -241,15 +240,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
 
     useEffect(() => {
-        const handleEvents = () => setActiveMenuId(null);
-        window.addEventListener('scroll', handleEvents, true);
-        window.addEventListener('click', (e) => {
-            if (!(e.target as HTMLElement).closest('.message_actions_popup') &&
-                !(e.target as HTMLElement).closest('.text.me')) {
-                handleEvents();
+        const handleClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const inPopup = target.closest('.message_actions_popup');
+            const inMessageBubble = target.closest('.message_bubble');
+            const inEmojiPicker = target.closest('.emoji_reactions_picker');
+            const inReactionsSubmenu = target.closest('.reactions_submenu');
+            
+            if (!inPopup && !inMessageBubble && !inEmojiPicker && !inReactionsSubmenu) {
+                setActiveMenuId(null);
             }
-        }, true);
-        return () => window.removeEventListener('scroll', handleEvents, true);
+        };
+        
+        window.addEventListener('click', handleClick, true);
+        return () => window.removeEventListener('click', handleClick, true);
     }, []);
 
     return (

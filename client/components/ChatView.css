@@ -586,7 +586,7 @@ footer {
 
 .message_actions_popup {
     pointer-events: auto;
-    /* Re-enable events for the content */
+    width: 280px;
     display: flex;
     flex-direction: column;
     min-width: 120px;
@@ -604,7 +604,17 @@ footer {
     gap: 4px;
     padding: 8px;
     border-bottom: 1px solid #30363d;
-    justify-content: space-between;
+    max-height: 50px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.emoji_reactions_picker::-webkit-scrollbar {
+    display: none;
 }
 
 .emoji_btn {

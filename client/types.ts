@@ -45,3 +45,8 @@ export interface UserSettings {
   serverUrl: string;
   isDemoMode: boolean;
 }
+
+export interface UserInfo {
+  avatarUrl?: string;
+  displayName: string;
+}

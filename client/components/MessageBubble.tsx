@@ -4,9 +4,9 @@ import { Mic, Share2, Edit2, Trash2, Smile } from 'lucide-react';
 import { format } from 'date-fns';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { AnimatedSticker } from './AnimatedSticker';
-import { Message, UserSettings } from '../types';
+import { Message, UserSettings, UserInfo } from '../types';
 
-const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉'];
+const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉', '😎', '😍', '🤔', '😅', '🤣', '😭', '💀', '👀', '🙄', '😴', '🤯', '🥳', '😇', '🤡', '👻', '💩', '🍌', '🍕', '🚀', '⭐', '💯', '✅'];
 
 interface MessageBubbleProps {
     msg: Message;
@@ -15,7 +15,7 @@ interface MessageBubbleProps {
     activeMenuId: string | null;
     menuPosition: { top: number; right: number };
     userAvatars: Record<string, string>;
-    users: Record<string, { avatarUrl?: string; displayName: string }>;
+    users: Record<string, UserInfo>;
     onMessageClick: (e: React.MouseEvent, msg: Message) => void;
     toggleReaction: (messageId: string, emoji: string) => void;
     onReply: (msg: Message) => void;
@@ -51,8 +51,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         >   
             {!msg.isMe && (
                 <div className="message_avatar">
-                    {userAvatars[msg.sender] ? (
-                        <img src={userAvatars[msg.sender]} alt="" />
+                    {userAvatars[msg.sender.toLowerCase()] && userAvatars[msg.sender.toLowerCase()] !== '' ? (
+                        <img src={userAvatars[msg.sender.toLowerCase()]} alt="" />
                     ) : (
                         <div className="message_avatar_placeholder">
                             {(msg.displayName || msg.sender).charAt(0).toUpperCase()}
@@ -69,7 +69,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <div className={`message_bubble ${msg.isMe ? 'me' : 'them'}`}>
                     <div
                         className={`text ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_text' : ''} relative group cursor-pointer`}
-                        onClick={(e) => onMessageClick(e, msg)}
+                        onClick={(e: React.MouseEvent) => onMessageClick(e, msg)}
                     >
                         {activeMenuId === msg.id && createPortal(
                             <div
@@ -81,14 +81,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             >
                                 <div
                                     className="message_actions_popup"
-                                    onClick={(e) => e.stopPropagation()}
+                                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
                                 >
                                     <div className="emoji_reactions_picker">
                                         {EMOJIS.map(emoji => (
                                             <button
                                                 key={emoji}
                                                 className={`emoji_btn ${msg.reactions?.[emoji]?.includes(settings.username) ? 'active' : ''}`}
-                                                onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); onMessageClick(e as any, msg); }}
+                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); toggleReaction(msg.id, emoji); onMessageClick(e, msg); }}
                                             >
                                                 {emoji}
                                             </button>
@@ -97,7 +97,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                                         <>
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); setShowReactionsList(!showReactionsList); }}
+                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setShowReactionsList(!showReactionsList); }}
                                                 className="menu_item"
                                             >
                                                 <Smile size={14} />
@@ -105,9 +105,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                             </button>
                                             {showReactionsList && (
                                                 <div className="reactions_submenu">
-                                                    {Object.entries(msg.reactions).map(([emoji, reactors]) => {
-                                                        const reactorList = reactors as string[];
-                                                        return reactorList.map((user) => {
+                                                    {Object.entries(msg.reactions ?? {}).map(([emoji, reactors]: [string, string[]]) => {
+                                                        return reactors.map((user: string) => {
                                                             const userData = users[user.toLowerCase()];
                                                             const avatarUrl = userData?.avatarUrl;
                                                             return (
@@ -131,7 +130,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     )}
                                     <div className="menu_divider"></div>
                                     <button
-                                        onClick={(e) => { e.stopPropagation(); onReply(msg); }}
+                                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); onReply(msg); }}
                                         className="menu_item"
                                     >
                                         <Mic size={14} style={{ transform: 'rotate(180deg)' }} />
@@ -139,7 +138,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     </button>
 
                                     <button
-                                        onClick={(e) => { e.stopPropagation(); onForward(msg); }}
+                                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); onForward(msg); }}
                                         className="menu_item"
                                     >
                                         <Share2 size={14} />
@@ -149,14 +148,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                     {msg.isMe && (
                                         <>
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); onEdit(msg); onMessageClick(e as any, msg); }}
+                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); onEdit(msg); onMessageClick(e, msg); }}
                                                 className="menu_item"
                                             >
                                                 <Edit2 size={14} />
                                                 <span>Edit</span>
                                             </button>
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); onDelete(msg.id); }}
+                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); onDelete(msg.id); }}
                                                 className="menu_item delete"
                                             >
                                                 <Trash2 size={14} />
@@ -172,14 +171,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         {msg.isForwarded && (
                             <div className="forwarded_label">
                                 <Share2 size={10} />
-                                <span>Forwarded from {msg.forwardedFrom}</span>
+                                <span>Forwarded from {msg.displayName}</span>
                             </div>
                         )}
 
                         {msg.replyToId && (
                             <div
                                 className="reply_reference"
-                                onClick={(e) => { e.stopPropagation(); scrollToMessage(msg.replyToId!); }}
+                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); scrollToMessage(msg.replyToId!); }}
                             >
                                 <div className="reply_line"></div>
                                 <div className="reply_content_preview">
@@ -262,17 +261,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                         {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                             <div className="message_reactions">
-                                {Object.entries(msg.reactions).map(([emoji, reactors]) => {
-                                    const users = reactors as string[];
+                                {Object.entries(msg.reactions).map(([emoji, reactors]: [string, string[]]) => {
                                     return (
                                         <div
                                             key={emoji}
-                                            className={`reaction_pill ${users.includes(settings.username) ? 'active' : ''}`}
-                                            onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
-                                            title={users.join(', ')}
+                                            className={`reaction_pill ${reactors.includes(settings.username) ? 'active' : ''}`}
+                                            onClick={(e: React.MouseEvent) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
+                                            title={reactors.join(', ')}
                                         >
                                             <span className="reaction_emoji">{emoji}</span>
-                                            <span className="reaction_count">{users.length}</span>
+                                            <span className="reaction_count">{reactors.length}</span>
                                         </div>
                                     );
                                 })}
