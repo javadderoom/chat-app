@@ -18,6 +18,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
     const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
     const [socket, setSocket] = useState<Socket | null>(null);
+    const [users, setUsers] = useState<Record<string, { avatarUrl?: string; displayName: string }>>({});
 
     const settingsRef = useRef(settings);
     useEffect(() => {
@@ -97,11 +98,38 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         }
     }, [settings.serverUrl, token]);
 
+    // Fetch all users for avatar caching
+    const fetchUsers = useCallback(async () => {
+        if (!token) return;
+        
+        try {
+            const response = await fetch(`${settings.serverUrl}/api/auth/users`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (response.ok) {
+                const data: { username: string; avatarUrl?: string; displayName: string }[] = await response.json();
+                const usersMap: Record<string, { avatarUrl?: string; displayName: string }> = {};
+                data.forEach(u => {
+                    usersMap[u.username.toLowerCase()] = {
+                        avatarUrl: u.avatarUrl,
+                        displayName: u.displayName
+                    };
+                });
+                setUsers(usersMap);
+            }
+        } catch (error) {
+            console.error('Error fetching users:', error);
+        }
+    }, [settings.serverUrl, token]);
+
     useEffect(() => {
         if (status === ConnectionStatus.CONNECTED) {
             fetchChats();
+            fetchUsers();
         }
-    }, [status, fetchChats]);
+    }, [status, fetchChats, fetchUsers]);
 
     // Initialize connection
     useEffect(() => {
@@ -202,6 +230,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         setActiveChatId,
         status,
         fetchChats,
+        users,
         ...actions
     };
 };

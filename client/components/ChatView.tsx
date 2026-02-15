@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Edit2, Check, Menu, Share2, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare } from 'lucide-react';
-import { format } from 'date-fns';
+import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Menu, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare } from 'lucide-react';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
-import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { StickerPicker } from './StickerPicker';
-import { AnimatedSticker } from './AnimatedSticker';
+import { MessageBubble } from './MessageBubble';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
 import { UserSettings, ConnectionStatus, Message } from '../types';
 import './ChatView.css';
@@ -13,8 +10,6 @@ import './ChatView.css';
 import { ConfirmModal } from './ConfirmModal';
 import { ForwardModal } from './ForwardModal';
 import { ChatSettingsModal } from './ChatSettingsModal';
-
-const EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉'];
 
 interface Chat {
     id: string;
@@ -49,6 +44,7 @@ interface ChatViewProps {
     chats: Chat[];
     user?: User;
     token: string | null;
+    users: Record<string, { avatarUrl?: string; displayName: string }>;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -69,8 +65,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
     updateChat,
     chats,
     user,
-    token
+    token,
+    users
 }) => {
+    const userAvatars: Record<string, string> = Object.fromEntries(
+        Object.entries(users).map(([username, data]) => [username, data.avatarUrl || ''])
+    );
+    
     const [input, setInput] = useState('');
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -87,6 +88,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const prevMessagesLengthRef = useRef(messages.length);
+    const userAvatars: Record<string, string> = {};
 
     const truncateText = (text: string, length: number = 20) => {
         if (!text) return '';
@@ -229,9 +231,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
             setActiveMenuId(null);
         } else {
             const rect = e.currentTarget.getBoundingClientRect();
+            const isMe = msg.isMe;
             setMenuPosition({
-                top: rect.top,
-                right: window.innerWidth - rect.right
+                top: rect.bottom,
+                right: isMe ? window.innerWidth - rect.right : rect.left
             });
             setActiveMenuId(msg.id);
         }
@@ -298,226 +301,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     }
                     
                     return (
-                        <div
-                            id={`msg-${msg.id}`}
+                        <MessageBubble
                             key={msg.id}
-                            className={`message ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_msg' : ''}`}
-                        >
-                            {!msg.isMe && (
-                                <div className="message_avatar">
-                                    {userAvatars[msg.sender] ? (
-                                        <img src={userAvatars[msg.sender]} alt="" />
-                                    ) : (
-                                        <div className="message_avatar_placeholder">
-                                            {(msg.displayName || msg.sender).charAt(0).toUpperCase()}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            <div className="message_content">
-                                <div className={`message_bubble ${msg.isMe ? 'me' : 'them'}`}>
-                                    <div className="message_header">
-                                        <span className={`username text-xs font-bold ${msg.isMe ? 'text-green-400' : 'text-blue-400'}`}>
-                                            {msg.displayName || msg.sender}
-                                        </span>
-                                    </div>
-                                    <div
-                                        className={`text ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_text' : ''} relative group cursor-pointer`}
-                                        onClick={(e) => handleMessageClick(e, msg)}
-                                    >
-                            <div className={`info ${msg.isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                                <span className={`username text-xs font-bold ${msg.isMe ? 'text-green-400' : 'text-blue-400'}`}>
-                                    {msg.displayName || msg.sender}
-                                </span>
-                                <span className="time">
-                                    {format(msg.timestamp, 'HH:mm:ss')}
-                                </span>
-                            </div>
-
-                            <div
-                                className={`text ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_text' : ''} relative group cursor-pointer`}
-                                onClick={(e) => handleMessageClick(e, msg)}
-                            >
-                                {activeMenuId === msg.id && createPortal(
-                                    <div
-                                        className="message_actions_wrapper"
-                                        style={{
-                                            top: `${menuPosition.top}px`,
-                                            right: `${menuPosition.right}px`
-                                        }}
-                                    >
-                                        <div
-                                            className="message_actions_popup"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <div className="emoji_reactions_picker">
-                                                {EMOJIS.map(emoji => (
-                                                    <button
-                                                        key={emoji}
-                                                        className={`emoji_btn ${msg.reactions?.[emoji]?.includes(settings.username) ? 'active' : ''}`}
-                                                        onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); setActiveMenuId(null); }}
-                                                    >
-                                                        {emoji}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            <div className="menu_divider"></div>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); startReply(msg); }}
-                                                className="menu_item"
-                                            >
-                                                <Mic size={14} style={{ transform: 'rotate(180deg)' }} />
-                                                <span>Reply</span>
-                                            </button>
-
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleForward(msg); }}
-                                                className="menu_item"
-                                            >
-                                                <Share2 size={14} />
-                                                <span>Forward</span>
-                                            </button>
-
-                                            {msg.isMe && (
-                                                <>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); startEditing(msg); setActiveMenuId(null); }}
-                                                        className="menu_item"
-                                                    >
-                                                        <Edit2 size={14} />
-                                                        <span>Edit</span>
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); }}
-                                                        className="menu_item delete"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                        <span>Delete</span>
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>,
-                                    document.body
-                                )}
-
-                                {msg.isForwarded && (
-                                    <div className="forwarded_label">
-                                        <Share2 size={10} />
-                                        <span>Forwarded from {msg.forwardedFrom}</span>
-                                    </div>
-                                )}
-
-                                {msg.replyToId && (
-                                    <div
-                                        className="reply_reference"
-                                        onClick={(e) => { e.stopPropagation(); scrollToMessage(msg.replyToId!); }}
-                                    >
-                                        <div className="reply_line"></div>
-                                        <div className="reply_content_preview">
-                                            <span className="reply_user">
-                                                {messages.find(m => m.id === msg.replyToId)?.displayName || messages.find(m => m.id === msg.replyToId)?.sender || 'Message'}
-                                            </span>
-                                            <p className="reply_text">
-                                                {truncateText(messages.find(m => m.id === msg.replyToId)?.text || 'Original message not found')}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-                                {msg.messageType === 'image' && msg.mediaUrl && (
-                                    <div className="media_content">
-                                        <img
-                                            src={msg.mediaUrl}
-                                            alt={msg.fileName || 'Image'}
-                                            className="media_image"
-                                            onClick={() => window.open(msg.mediaUrl, '_blank')}
-                                        />
-                                    </div>
-                                )}
-
-                                {msg.messageType === 'video' && msg.mediaUrl && (
-                                    <div className="media_content">
-                                        <video
-                                            src={msg.mediaUrl}
-                                            controls
-                                            className="media_video"
-                                        />
-                                    </div>
-                                )}
-
-                                {(msg.messageType === 'audio' || msg.messageType === 'voice') && msg.mediaUrl && (
-                                    <div className="media_content">
-                                        {msg.fileName && (
-                                            <div className="media_filename">
-                                                {truncateText(msg.fileName)}
-                                            </div>
-                                        )}
-                                        <VoiceMessagePlayer
-                                            src={msg.mediaUrl}
-                                            duration={msg.mediaDuration}
-                                        />
-                                    </div>
-                                )}
-
-                                {msg.messageType === 'sticker' && msg.stickerId && (
-                                    <div className="sticker_container">
-                                        {(msg.stickerId.endsWith('.tgs') || msg.stickerId.endsWith('.json')) ? (
-                                            <AnimatedSticker
-                                                src={`/stickers/${msg.stickerId}`}
-                                                className="sticker_image"
-                                            />
-                                        ) : msg.stickerId.endsWith('.webm') ? (
-                                            <video
-                                                src={`/stickers/${msg.stickerId}`}
-                                                className="sticker_image"
-                                                autoPlay
-                                                loop
-                                                muted
-                                                playsInline
-                                            />
-                                        ) : (
-                                            <img
-                                                src={msg.stickerId.includes('.') ? `/stickers/${msg.stickerId}` : `/stickers/${msg.stickerId}.svg`}
-                                                alt="sticker"
-                                                className="sticker_image"
-                                            />
-                                        )}
-                                    </div>
-                                )}
-
-                                {(msg.text && msg.messageType !== 'sticker' && (!msg.mediaUrl || (!msg.text.startsWith('[IMAGE]') && !msg.text.startsWith('[VIDEO]') && !msg.text.startsWith('[AUDIO]') && !msg.text.startsWith('[FILE]')))) && (
-                                    <div className="message_text_content">
-                                        {msg.text}
-                                        {msg.updatedAt && <span className="text-[10px] text-gray-500 ml-2 italic">(edited)</span>}
-                                    </div>
-                                )}
-
-                                {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                                    <div className="message_reactions">
-                                        {Object.entries(msg.reactions).map(([emoji, reactors]) => {
-                                            const users = reactors as string[];
-                                            return (
-                                                <div
-                                                    key={emoji}
-                                                    className={`reaction_pill ${users.includes(settings.username) ? 'active' : ''}`}
-                                                    onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
-                                                    title={users.join(', ')}
-                                                >
-                                                    <span className="reaction_emoji">{emoji}</span>
-                                                    <span className="reaction_count">{users.length}</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                                <div className="message_footer">
-                                    <span className="time">
-                                        {format(msg.timestamp, 'HH:mm:ss')}
-                                    </span>
-                                </div>
-                                </div>
-                            </div>
-                        </div>
+                            msg={msg}
+                            settings={settings}
+                            messages={messages}
+                            activeMenuId={activeMenuId}
+                            menuPosition={menuPosition}
+                            userAvatars={userAvatars}
+                            users={users}
+                            onMessageClick={handleMessageClick}
+                            toggleReaction={toggleReaction}
+                            onReply={startReply}
+                            onForward={handleForward}
+                            onEdit={startEditing}
+                            onDelete={handleDelete}
+                            scrollToMessage={scrollToMessage}
+                            truncateText={truncateText}
+                        />
                     );
                 })}
                 <div ref={messagesEndRef} />
@@ -713,3 +514,4 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
     );
 };
+      

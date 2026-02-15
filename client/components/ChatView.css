@@ -70,10 +70,12 @@ header {
 .message {
     display: flex;
     align-items: flex-end;
-    gap: 8px;
+    flex-direction: row;
+    gap: 4px;
     margin-bottom: 12px;
-    padding: 0 16px;
+    /* padding: 0 16px; */
     position: relative;
+    max-width: 85%;
 }
 
 .message.me {
@@ -82,8 +84,21 @@ header {
 
 .message_avatar {
     flex-shrink: 0;
-    position: relative;
-    bottom: 0;
+    width: 32px;
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 2px;
+}
+
+.message_sender_name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #58a6ff;
+    margin-bottom: 4px;
+}
+
+.message.me .message_sender_name {
+    display: none;
 }
 
 .message_avatar img {
@@ -112,7 +127,7 @@ header {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    max-width: 70%;
+    /* max-width: 70%; */
 }
 
 .message.me .message_content {
@@ -125,6 +140,8 @@ header {
     border-radius: 12px;
     padding: 8px 12px;
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
 
 .message.me .message_bubble {
@@ -133,11 +150,26 @@ header {
 }
 
 .message_bubble.them {
-    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
 }
 
 .message_bubble.me {
     border-top-right-radius: 4px;
+}
+
+.message_bubble .message_footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
+    padding-top: 2px;
+}
+
+.message.me .message_bubble .message_footer {
+    justify-content: flex-end;
+}
+
+.message.them .message_bubble .message_footer {
+    justify-content: flex-end;
 }
 
 .message_header {
@@ -148,7 +180,41 @@ header {
     display: flex;
     justify-content: flex-end;
 }
+.message_reactions{
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
 
+.reaction_pill {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: rgba(110, 118, 129, 0.4);
+    border: 1px solid transparent;
+    border-radius: 12px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.reaction_pill:hover {
+    background: rgba(110, 118, 129, 0.6);
+}
+
+.reaction_pill.active {
+    background: rgba(35, 134, 54, 0.3);
+    border-color: rgba(35, 134, 54, 0.5);
+}
+
+.reaction_emoji {
+    font-size: 14px;
+}
+
+.reaction_count {
+    font-size: 11px;
+    color: #8b949e;
+}
 .menu_toggle {
     display: none;
     background: transparent;
@@ -196,11 +262,11 @@ main .signal {
     margin-bottom: 16px;
 }
 
-.message {
+/* .message {
     display: flex;
     flex-direction: column;
     max-width: 85%;
-}
+} */
 
 @media (min-width: 640px) {
     .message {
@@ -210,7 +276,7 @@ main .signal {
 
 .them {
     align-self: flex-start;
-    align-items: flex-start;
+   
 }
 
 .me {
@@ -515,8 +581,7 @@ footer {
     position: fixed;
     z-index: 1000;
     pointer-events: none;
-    /* Allow events through to the child */
-    transform: translateY(-100%) translateY(-8px);
+     transform: translateY(-100%) translateY(-8px);
 }
 
 .message_actions_popup {
@@ -532,7 +597,6 @@ footer {
     padding: 4px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     animation: popupScale 0.15s ease-out;
-    transform-origin: bottom right;
 }
 
 .emoji_reactions_picker {
@@ -559,8 +623,56 @@ footer {
 }
 
 .emoji_btn.active {
-    background: rgba(35, 134, 54, 0.2);
-    border: 1px solid #238636;
+    background: rgba(35, 134, 54, 0.3);
+}
+
+.reactions_submenu {
+    max-height: 150px;
+    overflow-y: auto;
+    border-bottom: 1px solid #30363d;
+    padding: 4px 0;
+}
+
+.reaction_user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #c9d1d9;
+}
+
+.reaction_user:hover {
+    background: rgba(110, 118, 129, 0.2);
+}
+
+.reaction_user_emoji {
+    font-size: 14px;
+    margin-left: auto;
+}
+
+.reaction_user_name {
+    font-weight: 500;
+}
+
+.reaction_user_avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--glass-hover);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    overflow: hidden;
+}
+
+.reaction_user_avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .menu_divider {
