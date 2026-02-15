@@ -27,15 +27,16 @@ client/
 │   ├── ChatList.tsx      # Chat room list sidebar
 │   ├── ChatView.tsx      # Main message view
 │   ├── MessageBubble.tsx # Message bubble component
-│   ├── LoginPage.tsx      # Authentication page
-│   ├── SettingsPanel.tsx  # User settings modal
+│   ├── LoginPage.tsx     # Authentication page
+│   ├── SettingsPanel.tsx # User settings modal
 │   ├── ServerHelpModal.tsx
-│   ├── StickerPicker.tsx  # Sticker selection
+│   ├── StickerPicker.tsx # Sticker selection
 │   ├── VoiceMessagePlayer.tsx
 │   ├── ForwardModal.tsx
 │   ├── ConfirmModal.tsx
 │   ├── FileUploadButton.tsx
-│   └── ChatSettingsModal.tsx
+│   ├── ChatSettingsModal.tsx # Chat settings & member management
+│   └── ChatMembersPanel.tsx # Members list panel
 ├── contexts/
 │   └── AuthContext.tsx    # Authentication state
 ├── hooks/
@@ -139,10 +140,11 @@ Provides action methods:
 - `editMessage()` - Edit message
 - `deleteMessage()` - Delete message
 - `toggleReaction()` - React to message
-- `createChat()` - Create new chat
+- `createChat()` - Create new chat (supports `isPrivate` flag)
 - `forwardMessage()` - Forward message
 - `sendSticker()` - Send sticker
 - `updateChat()` - Update chat info
+- `deleteChat()` - Delete chat (admin only)
 
 ## Type Definitions
 
@@ -184,6 +186,8 @@ interface Chat {
   imageUrl?: string;
   lastMessageAt?: string | number;
   createdAt: string | number;
+  isPrivate?: boolean;
+  isDm?: boolean;
 }
 ```
 
@@ -227,8 +231,13 @@ const socket = io(serverUrl, {
 |--------|----------|---------|-------------|
 | GET | `/api/messages?chatId=` | Bearer token | Get messages |
 | GET | `/api/chats` | Bearer token | Get all chats |
+| POST | `/api/chats/dm` | Bearer token | Create/find DM |
+| DELETE | `/api/chats/:chatId` | Bearer token | Delete chat |
 | POST | `/api/upload` | Bearer token | Upload file |
-| GET | `/api/auth/users` | Bearer token | Get all users (for avatar caching) |
+| GET | `/api/auth/users` | Bearer token | Get all users |
+| GET | `/api/chats/:chatId/members` | Bearer token | Get chat members |
+| POST | `/api/chats/:chatId/members` | Bearer token | Add member |
+| DELETE | `/api/chats/:chatId/members/:userId` | Bearer token | Remove member |
 
 ## Authentication
 
@@ -274,3 +283,22 @@ Configured for Liara cloud platform:
 - `liara.json` - Platform configuration
 - `Dockerfile` - Container build
 - Build output in `dist/`
+
+## Features
+
+### Chat Membership
+- Users only see chats they're members of + public chats
+- Private chats require membership to view
+- ChatSettingsModal allows admins to add/remove members
+- ChatMembersPanel shows all chat members
+
+### Direct Messages
+- "Direct Message" option in message action popup
+- Creates/finds DM between two users
+- DM name uses sorted usernames (e.g., "alice & bob")
+- Both users are admins in DMs
+
+### Chat Management
+- Create public or private chats
+- Edit chat name, description, avatar
+- Delete chat (admin only, Global cannot be deleted)

@@ -72,7 +72,8 @@ server/
   imageUrl: text,
   lastMessageAt: timestamp,
   createdAt: timestamp,
-  isPrivate: boolean DEFAULT false
+  isPrivate: boolean DEFAULT false,
+  isDm: boolean DEFAULT false
 }
 ```
 
@@ -166,6 +167,8 @@ jwt.sign(
 | GET | `/api/messages` | Yes | Get messages (50 recent) |
 | GET | `/api/messages?chatId=` | Yes | Get messages for chat |
 | GET | `/api/chats` | Yes | Get user's chat rooms (members + public) |
+| POST | `/api/chats/dm` | Yes | Find or create DM chat |
+| DELETE | `/api/chats/:chatId` | Yes | Delete chat (admin only) |
 | GET | `/api/chats/:chatId/members` | Yes | Get chat members |
 | POST | `/api/chats/:chatId/members` | Yes | Add member to chat |
 | DELETE | `/api/chats/:chatId/members/:userId` | Yes | Remove member from chat |
@@ -194,6 +197,7 @@ jwt.sign(
 | `reactionUpdated` | `{ messageId, reactions }` | Reactions changed |
 | `chatCreated` | Chat object | New chat room |
 | `chatUpdated` | Chat object | Chat updated |
+| `chatDeleted` | `{ chatId }` | Chat deleted |
 
 ## Message Handling Flow
 
@@ -281,3 +285,11 @@ const onlineUsers = new Map();
 ### Reactions
 - Stored as JSONB: `{ "😊": ["user1", "user2"], "👍": ["user3"] }`
 - Toggle behavior: add/remove user from emoji list
+
+### Chat Membership
+- Users can only see chats they are members of, plus public chats
+- Private chats are only visible to members
+- Direct messages (DMs) are created between two users
+- DM name is sorted usernames (e.g., "alice & bob")
+- Both users are admins in DMs
+- Chat deletion restricted to admins (Global chat cannot be deleted)
