@@ -69,7 +69,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     users
 }) => {
     const userAvatars: Record<string, string> = Object.fromEntries(
-        Object.entries(users).map(([username, data]) => [username, data.avatarUrl || ''])
+        Object.entries(users).map(([username, data]: [string, UserInfo]) => [username, data.avatarUrl || ''])
     );
     
     const [input, setInput] = useState('');
@@ -146,6 +146,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
             formData.append('file', file);
             const response = await fetch(`${settings.serverUrl}/api/upload/voice`, {
                 method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
                 body: formData,
             });
 
@@ -422,6 +425,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
                                 <FileUploadButton
                                     serverUrl={settings.serverUrl}
+                                    token={token}
                                     disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
                                     onUploadComplete={handleUploadComplete}
                                     onError={(error: string) => {

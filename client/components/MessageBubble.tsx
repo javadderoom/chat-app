@@ -44,10 +44,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     truncateText,
 }) => {
     const [showReactionsList, setShowReactionsList] = useState(false);
+    const hasMedia = msg.messageType === 'image' || msg.messageType === 'video' || msg.messageType === 'audio' || msg.messageType === 'voice';
+    
     return (
         <div
             id={`msg-${msg.id}`}
-            className={`message ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_msg' : ''}`}
+            className={`message_wrapper ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_msg' : ''}`}
+            onClick={(e: React.MouseEvent) => onMessageClick(e, msg)}
         >   
             {!msg.isMe && (
                 <div className="message_avatar">
@@ -66,10 +69,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         {msg.displayName || msg.sender}
                     </div>
                 )}
-                <div className={`message_bubble ${msg.isMe ? 'me' : 'them'}`}>
+                <div className={`message_bubble ${msg.isMe ? 'me' : 'them'} ${hasMedia ? 'has_media' : ''}`}>
                     <div
-                        className={`text ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_text' : ''} relative group cursor-pointer`}
-                        onClick={(e: React.MouseEvent) => onMessageClick(e, msg)}
+                        className={`text ${msg.isMe ? 'me' : 'them'} ${msg.messageType === 'sticker' ? 'sticker_text' : ''} relative group`}
                     >
                         {activeMenuId === msg.id && createPortal(
                             <div
@@ -192,18 +194,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             </div>
                         )}
                         {msg.messageType === 'image' && msg.mediaUrl && (
-                            <div className="media_content">
+                            <div className="media_content" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                                 <img
                                     src={msg.mediaUrl}
                                     alt={msg.fileName || 'Image'}
                                     className="media_image"
-                                    onClick={() => window.open(msg.mediaUrl, '_blank')}
+                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); window.open(msg.mediaUrl, '_blank'); }}
                                 />
                             </div>
                         )}
 
                         {msg.messageType === 'video' && msg.mediaUrl && (
-                            <div className="media_content">
+                            <div className="media_content" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                                 <video
                                     src={msg.mediaUrl}
                                     controls
@@ -213,7 +215,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         )}
 
                         {(msg.messageType === 'audio' || msg.messageType === 'voice') && msg.mediaUrl && (
-                            <div className="media_content">
+                            <div className="media_content" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                                 {msg.fileName && (
                                     <div className="media_filename">
                                         {truncateText(msg.fileName)}
@@ -259,7 +261,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             </div>
                         )}
 
-                        {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                     
+                    </div>
+                    <div className="message_footer">
+                           {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                             <div className="message_reactions">
                                 {Object.entries(msg.reactions).map(([emoji, reactors]: [string, string[]]) => {
                                     return (
@@ -276,11 +281,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 })}
                             </div>
                         )}
-                    </div>
-                    <div className="message_footer">
                         <span className="time">
                             {format(msg.timestamp, 'HH:mm:ss')}
                         </span>
+                        
                     </div>
                 </div>
             </div>

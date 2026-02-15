@@ -3,6 +3,7 @@ import { Plus, Image, Video, Music, X, Loader2 } from 'lucide-react';
 
 interface FileUploadButtonProps {
     serverUrl: string;
+    token: string | null;
     disabled?: boolean;
     onUploadComplete: (uploadData: UploadResult) => void;
     onError: (error: string) => void;
@@ -31,6 +32,7 @@ const MAX_SIZES = {
 
 export const FileUploadButton: React.FC<FileUploadButtonProps> = ({
     serverUrl,
+    token,
     disabled = false,
     onUploadComplete,
     onError,
@@ -100,6 +102,9 @@ export const FileUploadButton: React.FC<FileUploadButtonProps> = ({
                 };
                 xhr.onerror = () => reject(new Error('Network error'));
                 xhr.open('POST', `${serverUrl}/api/upload/${type}`);
+                if (token) {
+                    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                }
                 xhr.send(formData);
             });
 
