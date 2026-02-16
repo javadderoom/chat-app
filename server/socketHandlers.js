@@ -1,8 +1,110 @@
-const { db } = require('./db/index');
+const { db, pool } = require('./db/index');
 const { messages, chats, users, chatMembers } = require('./db/schema');
 const { eq, and } = require('drizzle-orm');
 
 function createSocketHandlers(io, onlineUsers) {
+  async function getReceiptAggregates(messageIds = []) {
+    if (!messageIds.length) return new Map();
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        r.message_id AS "messageId",
+        COUNT(*)::int AS "deliveredCount",
+        COUNT(r.seen_at)::int AS "seenCount",
+        ARRAY_REMOVE(
+          ARRAY_AGG(
+            CASE WHEN r.seen_at IS NOT NULL THEN COALESCE(u.display_name, u.username) END
+          ),
+          NULL
+        ) AS "seenBy"
+      FROM message_receipts r
+      LEFT JOIN users u ON u.id = r.user_id
+      WHERE r.message_id = ANY($1::uuid[])
+      GROUP BY r.message_id
+      `,
+      [messageIds]
+    );
+
+    const result = new Map();
+    for (const row of rows) {
+      result.set(row.messageId, {
+        deliveredCount: row.deliveredCount || 0,
+        seenCount: row.seenCount || 0,
+        seenBy: row.seenBy || []
+      });
+    }
+    return result;
+  }
+
+  async function emitReceiptUpdates(chatId, messageIds = []) {
+    if (!chatId || !messageIds.length) return;
+    const uniqueIds = Array.from(new Set(messageIds));
+    const receiptMap = await getReceiptAggregates(uniqueIds);
+
+    for (const messageId of uniqueIds) {
+      const aggregate = receiptMap.get(messageId) || {
+        deliveredCount: 0,
+        seenCount: 0,
+        seenBy: []
+      };
+      io.to(chatId).emit('messageReceiptUpdated', {
+        messageId,
+        ...aggregate
+      });
+    }
+  }
+
+  async function upsertReceiptsForMessages({ targetUserIds = [], messageIds = [], markSeen = false }) {
+    const users = Array.from(new Set((targetUserIds || []).filter(Boolean)));
+    const ids = Array.from(new Set((messageIds || []).filter(Boolean)));
+    if (!users.length || !ids.length) return [];
+
+    const { rows } = await pool.query(
+      `
+      INSERT INTO message_receipts (message_id, user_id, delivered_at, seen_at, updated_at)
+      SELECT m.id, u.user_id, NOW(), CASE WHEN $3::boolean THEN NOW() ELSE NULL END, NOW()
+      FROM unnest($1::uuid[]) AS m(id)
+      CROSS JOIN unnest($2::uuid[]) AS u(user_id)
+      ON CONFLICT (message_id, user_id)
+      DO UPDATE SET
+        delivered_at = COALESCE(message_receipts.delivered_at, EXCLUDED.delivered_at),
+        seen_at = CASE
+          WHEN $3::boolean THEN COALESCE(message_receipts.seen_at, EXCLUDED.seen_at)
+          ELSE message_receipts.seen_at
+        END,
+        updated_at = NOW()
+      RETURNING message_id AS "messageId"
+      `,
+      [ids, users, !!markSeen]
+    );
+
+    return rows.map(row => row.messageId);
+  }
+
+  async function markChatReceipts({ chatId, userId, markSeen }) {
+    if (!chatId || !userId) return [];
+
+    const { rows } = await pool.query(
+      `
+      SELECT id
+      FROM messages
+      WHERE chat_id = $1
+        AND is_deleted = false
+        AND user_id <> $2
+      `,
+      [chatId, userId]
+    );
+    const messageIds = rows.map(r => r.id);
+    if (!messageIds.length) return [];
+
+    return upsertReceiptsForMessages({
+      targetUserIds: [userId],
+      messageIds,
+      markSeen
+    });
+  }
+
   function emitChatCreated(chat, memberUserIds = []) {
     if (!chat) return;
 
@@ -104,6 +206,35 @@ function createSocketHandlers(io, onlineUsers) {
         }
 
         socket.join(chatId);
+
+        try {
+          const changedMessageIds = await markChatReceipts({
+            chatId,
+            userId,
+            markSeen: true
+          });
+          if (changedMessageIds.length > 0) {
+            await emitReceiptUpdates(chatId, changedMessageIds);
+          }
+        } catch (error) {
+          console.error('Error updating receipts on joinChat:', error);
+        }
+      }
+    });
+
+    socket.on('markChatSeen', async (chatId) => {
+      if (!chatId || !userId) return;
+      try {
+        const changedMessageIds = await markChatReceipts({
+          chatId,
+          userId,
+          markSeen: true
+        });
+        if (changedMessageIds.length > 0) {
+          await emitReceiptUpdates(chatId, changedMessageIds);
+        }
+      } catch (error) {
+        console.error('Error marking chat seen:', error);
       }
     });
 
@@ -152,6 +283,33 @@ function createSocketHandlers(io, onlineUsers) {
           .from(users)
           .where(eq(users.id, userId));
 
+        let receiptAggregate = {
+          deliveredCount: 0,
+          seenCount: 0,
+          seenBy: []
+        };
+
+        if (insertValues.chatId) {
+          const roomSockets = io.sockets.adapter.rooms.get(insertValues.chatId) || new Set();
+          const roomUserIds = [];
+          for (const socketId of roomSockets) {
+            const roomSocket = io.sockets.sockets.get(socketId);
+            if (!roomSocket?.userId) continue;
+            if (roomSocket.userId === userId) continue;
+            roomUserIds.push(roomSocket.userId);
+          }
+
+          if (roomUserIds.length > 0) {
+            await upsertReceiptsForMessages({
+              targetUserIds: roomUserIds,
+              messageIds: [savedMessage.id],
+              markSeen: true
+            });
+            const aggregateMap = await getReceiptAggregates([savedMessage.id]);
+            receiptAggregate = aggregateMap.get(savedMessage.id) || receiptAggregate;
+          }
+        }
+
         if (insertValues.chatId) {
           io.to(insertValues.chatId).emit('message', {
             ...data,
@@ -163,7 +321,10 @@ function createSocketHandlers(io, onlineUsers) {
             forwardedFrom: savedMessage.forwardedFrom,
             userId: savedMessage.userId,
             username: savedMessage.username,
-            displayName: user?.displayName || savedMessage.username
+            displayName: user?.displayName || savedMessage.username,
+            deliveredCount: receiptAggregate.deliveredCount,
+            seenCount: receiptAggregate.seenCount,
+            seenBy: receiptAggregate.seenBy
           });
         } else {
           io.emit('message', {
@@ -174,7 +335,10 @@ function createSocketHandlers(io, onlineUsers) {
             replyToId: savedMessage.replyToId,
             userId: savedMessage.userId,
             username: savedMessage.username,
-            displayName: user?.displayName || savedMessage.username
+            displayName: user?.displayName || savedMessage.username,
+            deliveredCount: receiptAggregate.deliveredCount,
+            seenCount: receiptAggregate.seenCount,
+            seenBy: receiptAggregate.seenBy
           });
         }
       } catch (error) {

@@ -18,4 +18,7 @@ export interface DbMessage {
     stickerId?: string;
     displayName?: string;
     updatedAt?: string | Date;
+    deliveredCount?: number;
+    seenCount?: number;
+    seenBy?: string[];
 }

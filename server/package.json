@@ -10,7 +10,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:init": "node db/init.js"
+    "db:init": "node db/init.js",
+    "media:integrity": "node scripts/media-integrity.js"
   },
   "keywords": [],
   "author": "",

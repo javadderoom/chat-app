@@ -84,6 +84,9 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         isForwarded: dbMsg.isForwarded,
         forwardedFrom: dbMsg.forwardedFrom,
         stickerId: dbMsg.stickerId,
+        deliveredCount: dbMsg.deliveredCount || 0,
+        seenCount: dbMsg.seenCount || 0,
+        seenBy: dbMsg.seenBy || [],
         updatedAt: dbMsg.updatedAt ? new Date(dbMsg.updatedAt).getTime() : undefined
     }), [settings.username]);
 
@@ -234,6 +237,9 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
                     const loadedMessages: Message[] = dbMessages.reverse().map(mapDbMessage);
                     setMessages(loadedMessages);
                     setHasMoreMessages(dbMessages.length === PAGE_SIZE);
+                    if (socket && socket.connected) {
+                        socket.emit('markChatSeen', activeChatId);
+                    }
                 }
             } catch (error) {
                 console.error('Error loading messages:', error);

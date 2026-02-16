@@ -22,6 +22,9 @@ export interface Message {
   reactions?: Record<string, string[]>; // emoji -> list of usernames
   isForwarded?: boolean;
   forwardedFrom?: string; // username of the original sender
+  deliveredCount?: number;
+  seenCount?: number;
+  seenBy?: string[];
 }
 
 export interface PinnedMessageSummary {

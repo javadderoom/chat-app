@@ -69,10 +69,22 @@ const messages = pgTable('messages', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Per-user message delivery/read receipts
+const messageReceipts = pgTable('message_receipts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  messageId: uuid('message_id').references(() => messages.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  deliveredAt: timestamp('delivered_at').defaultNow().notNull(),
+  seenAt: timestamp('seen_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 module.exports = {
   users,
   chats,
   messages,
+  messageReceipts,
   chatMembers,
   messageTypeEnum,
 };

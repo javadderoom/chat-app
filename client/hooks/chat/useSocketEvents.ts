@@ -95,7 +95,10 @@ export const useSocketEvents = ({
                         id: data.id || updatedMessages[matchedIndex].id,
                         timestamp: data.createdAt ? new Date(data.createdAt).getTime() : updatedMessages[matchedIndex].timestamp,
                         replyToId: data.replyToId,
-                        displayName: data.displayName || updatedMessages[matchedIndex].displayName
+                        displayName: data.displayName || updatedMessages[matchedIndex].displayName,
+                        deliveredCount: data.deliveredCount ?? updatedMessages[matchedIndex].deliveredCount ?? 0,
+                        seenCount: data.seenCount ?? updatedMessages[matchedIndex].seenCount ?? 0,
+                        seenBy: data.seenBy ?? updatedMessages[matchedIndex].seenBy ?? []
                     };
                     return updatedMessages;
                 }
@@ -130,7 +133,10 @@ export const useSocketEvents = ({
                     chatId: data.chatId,
                     isForwarded: data.isForwarded,
                     forwardedFrom: data.forwardedFrom,
-                    stickerId: data.stickerId
+                    stickerId: data.stickerId,
+                    deliveredCount: data.deliveredCount || 0,
+                    seenCount: data.seenCount || 0,
+                    seenBy: data.seenBy || []
                 };
 
                 // Update chat list order if necessary
@@ -148,6 +154,10 @@ export const useSocketEvents = ({
 
                 return [...prev, newMessage];
             });
+
+            if (!isFromMe && data.chatId && data.chatId === activeChatIdRef.current) {
+                socket.emit('markChatSeen', data.chatId);
+            }
         };
 
         const handleMessageUpdated = (data: { id: string, text: string, updatedAt: string }) => {
@@ -166,6 +176,24 @@ export const useSocketEvents = ({
             setMessages(prev => prev.map(msg =>
                 msg.id === data.messageId
                     ? { ...msg, reactions: data.reactions }
+                    : msg
+            ));
+        };
+
+        const handleMessageReceiptUpdated = (data: {
+            messageId: string;
+            deliveredCount: number;
+            seenCount: number;
+            seenBy: string[];
+        }) => {
+            setMessages(prev => prev.map(msg =>
+                msg.id === data.messageId
+                    ? {
+                        ...msg,
+                        deliveredCount: data.deliveredCount || 0,
+                        seenCount: data.seenCount || 0,
+                        seenBy: data.seenBy || []
+                    }
                     : msg
             ));
         };
@@ -207,6 +235,7 @@ export const useSocketEvents = ({
         socket.on('messageUpdated', handleMessageUpdated);
         socket.on('messageDeleted', handleMessageDeleted);
         socket.on('reactionUpdated', handleReactionUpdated);
+        socket.on('messageReceiptUpdated', handleMessageReceiptUpdated);
         socket.on('chatCreated', handleChatCreated);
         socket.on('chatUpdated', handleChatUpdated);
         socket.on('chatPinnedUpdated', handleChatPinnedUpdated);
@@ -219,6 +248,7 @@ export const useSocketEvents = ({
             socket.off('messageUpdated', handleMessageUpdated);
             socket.off('messageDeleted', handleMessageDeleted);
             socket.off('reactionUpdated', handleReactionUpdated);
+            socket.off('messageReceiptUpdated', handleMessageReceiptUpdated);
             socket.off('chatCreated', handleChatCreated);
             socket.off('chatUpdated', handleChatUpdated);
             socket.off('chatPinnedUpdated', handleChatPinnedUpdated);

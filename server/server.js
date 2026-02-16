@@ -14,12 +14,13 @@ const {
   testDatabaseConnection,
   runMigrations,
   ensureDefaultGlobalChat,
+  validateUploadDirectory,
   pool
 } = require('./startup');
 
 const app = express();
 const onlineUsers = new Map();
-const uploadsDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+const uploadsDir = validateUploadDirectory(process.env.UPLOAD_DIR || path.join(__dirname, 'uploads'));
 
 const corsOptions = {
   origin: '*',

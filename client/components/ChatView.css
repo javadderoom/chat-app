@@ -518,6 +518,22 @@ main .signal {
     color: #8b949e;
 }
 
+.receipt_status_icon {
+    margin-left: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #8b949e;
+}
+
+.receipt_status_icon.delivered {
+    color: #8b949e;
+}
+
+.receipt_status_icon.seen {
+    color: #58a6ff;
+}
+
 .edited_marker {
     font-size: 10px;
     color: #8b949e;
@@ -960,6 +976,63 @@ footer {
     height: 1px;
     background: #30363d;
     margin: 4px 0;
+}
+
+.menu_section {
+    padding: 6px 10px;
+}
+
+.menu_section_title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.menu_seen_toggle {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: #8b949e;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 0;
+}
+
+.menu_seen_content {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    margin-top: 0;
+    transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease;
+}
+
+.menu_seen_content.open {
+    max-height: 180px;
+    opacity: 1;
+    margin-top: 6px;
+}
+
+.menu_seen_list {
+    max-height: 140px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.menu_seen_item {
+    font-size: 12px;
+    color: #c9d1d9;
+    padding: 3px 0;
+}
+
+.menu_seen_empty {
+    font-size: 12px;
+    color: #8b949e;
 }
 
 .menu_item {

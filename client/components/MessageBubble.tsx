@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Mic, Share2, Edit2, Trash2, Smile, MessageCircle, Pin, PinOff } from 'lucide-react';
+import { Mic, Share2, Edit2, Trash2, Smile, MessageCircle, Pin, PinOff, Check, CheckCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { AnimatedSticker } from './AnimatedSticker';
@@ -59,7 +59,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     onProfileClick,
 }) => {
     const [showReactionsList, setShowReactionsList] = useState(false);
+    const [showSeenByList, setShowSeenByList] = useState(false);
     const hasMedia = msg.messageType === 'image' || msg.messageType === 'video' || msg.messageType === 'audio' || msg.messageType === 'voice';
+    const seenBy = msg.seenBy || [];
+    const hasSeen = seenBy.length > 0;
+    const hasDelivered = (msg.deliveredCount || 0) > 0;
     
     return (
         <div
@@ -158,6 +162,38 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                                     })}
                                                 </div>
                                             )}
+                                        </>
+                                    )}
+
+                                    {(msg.isMe && (hasDelivered || hasSeen)) && (
+                                        <>
+                                            <div className="menu_divider"></div>
+                                            <div className="menu_section">
+                                                <button
+                                                    type="button"
+                                                    className="menu_seen_toggle"
+                                                    onClick={(e: React.MouseEvent) => {
+                                                        e.stopPropagation();
+                                                        setShowSeenByList(!showSeenByList);
+                                                    }}
+                                                >
+                                                    <span className="menu_section_title">Seen by</span>
+                                                    {showSeenByList ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                </button>
+                                                <div className={`menu_seen_content ${showSeenByList ? 'open' : ''}`}>
+                                                    {hasSeen ? (
+                                                        <div className="menu_seen_list">
+                                                            {seenBy.map((name) => (
+                                                                <div key={name} className="menu_seen_item">
+                                                                    {name}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="menu_seen_empty">No one has seen this message yet</div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </>
                                     )}
                                     <div className="menu_divider"></div>
@@ -353,6 +389,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             {format(msg.timestamp, 'HH:mm:ss')}
                             {msg.updatedAt && <span className="edited_marker">(edited)</span>}
                         </span>
+                        {msg.isMe && (hasDelivered || hasSeen) && (
+                            <span
+                                className={`receipt_status_icon ${hasSeen ? 'seen' : 'delivered'}`}
+                                title={hasSeen ? `Seen by ${seenBy.join(', ')}` : 'Delivered'}
+                            >
+                                {hasSeen ? <CheckCheck size={12} /> : <Check size={12} />}
+                            </span>
+                        )}
                         
                     </div>
                 </div>

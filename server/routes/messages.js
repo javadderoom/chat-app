@@ -1,5 +1,5 @@
 const express = require('express');
-const { db } = require('../db/index');
+const { db, pool } = require('../db/index');
 const { messages, users } = require('../db/schema');
 const { desc, eq, and, sql, lt } = require('drizzle-orm');
 const { verifyToken } = require('../middleware/auth');
@@ -66,7 +66,52 @@ router.get('/messages', verifyToken, async (req, res) => {
       .orderBy(desc(messages.createdAt))
       .limit(pageSize);
 
-    res.json(recentMessages);
+    const messageIds = recentMessages.map(m => m.id);
+    const receiptsByMessageId = new Map();
+    if (messageIds.length > 0) {
+      const { rows } = await pool.query(
+        `
+        SELECT
+          r.message_id AS "messageId",
+          COUNT(*)::int AS "deliveredCount",
+          COUNT(r.seen_at)::int AS "seenCount",
+          ARRAY_REMOVE(
+            ARRAY_AGG(
+              CASE WHEN r.seen_at IS NOT NULL THEN COALESCE(u.display_name, u.username) END
+            ),
+            NULL
+          ) AS "seenBy"
+        FROM message_receipts r
+        LEFT JOIN users u ON u.id = r.user_id
+        WHERE r.message_id = ANY($1::uuid[])
+        GROUP BY r.message_id
+        `,
+        [messageIds]
+      );
+      for (const row of rows) {
+        receiptsByMessageId.set(row.messageId, {
+          deliveredCount: row.deliveredCount || 0,
+          seenCount: row.seenCount || 0,
+          seenBy: row.seenBy || []
+        });
+      }
+    }
+
+    const withReceipts = recentMessages.map(message => {
+      const receipt = receiptsByMessageId.get(message.id) || {
+        deliveredCount: 0,
+        seenCount: 0,
+        seenBy: []
+      };
+      return {
+        ...message,
+        deliveredCount: receipt.deliveredCount,
+        seenCount: receipt.seenCount,
+        seenBy: receipt.seenBy
+      };
+    });
+
+    res.json(withReceipts);
   } catch (error) {
     console.error('Error fetching messages:', error.message);
 

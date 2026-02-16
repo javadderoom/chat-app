@@ -124,7 +124,10 @@ export const useChatActions = ({
             fileName: uploadData.fileName,
             fileSize: uploadData.fileSize,
             mediaDuration: uploadData.mediaDuration,
-            replyToId: replyToId
+            replyToId: replyToId,
+            deliveredCount: 0,
+            seenCount: 0,
+            seenBy: []
         };
         setMessages(prev => [...prev, localMessage]);
 
@@ -330,7 +333,10 @@ export const useChatActions = ({
             isSystem: false,
             messageType: 'sticker',
             stickerId: stickerId,
-            replyToId: replyToId
+            replyToId: replyToId,
+            deliveredCount: 0,
+            seenCount: 0,
+            seenBy: []
         };
         setMessages(prev => [...prev, localMessage]);
 

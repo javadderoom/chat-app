@@ -1,6 +1,8 @@
 const { db, pool } = require('./db/index');
 const { chats, users, chatMembers } = require('./db/schema');
 const { eq } = require('drizzle-orm');
+const fs = require('fs');
+const path = require('path');
 
 async function testDatabaseConnection(maxRetries = 10, retryDelay = 5000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -71,6 +73,18 @@ async function runMigrations() {
         UNIQUE(chat_id, user_id)
       )
     `).catch(() => {});
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS message_receipts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        message_id UUID REFERENCES messages(id) ON DELETE CASCADE NOT NULL,
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+        delivered_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        seen_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        UNIQUE(message_id, user_id)
+      )
+    `).catch(() => {});
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_chat_members_chat_id ON chat_members(chat_id)
@@ -80,6 +94,15 @@ async function runMigrations() {
     `).catch(() => {});
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_chats_pinned_message_id ON chats(pinned_message_id)
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_message_receipts_message_id ON message_receipts(message_id)
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_message_receipts_user_id ON message_receipts(user_id)
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_message_receipts_seen_at ON message_receipts(seen_at)
     `).catch(() => {});
     await pool.query(`
       CREATE EXTENSION IF NOT EXISTS pg_trgm
@@ -129,9 +152,47 @@ async function ensureDefaultGlobalChat() {
   }
 }
 
+function validateUploadDirectory(uploadRoot) {
+  const resolvedUploadRoot = path.resolve(uploadRoot);
+  const categories = ['images', 'videos', 'audio', 'voice'];
+
+  try {
+    fs.mkdirSync(resolvedUploadRoot, { recursive: true });
+  } catch (error) {
+    throw new Error(`Failed to create upload root "${resolvedUploadRoot}": ${error.message}`);
+  }
+
+  try {
+    fs.accessSync(resolvedUploadRoot, fs.constants.R_OK | fs.constants.W_OK);
+  } catch (error) {
+    throw new Error(`Upload root is not readable/writable "${resolvedUploadRoot}": ${error.message}`);
+  }
+
+  for (const category of categories) {
+    const categoryPath = path.join(resolvedUploadRoot, category);
+    try {
+      fs.mkdirSync(categoryPath, { recursive: true });
+      fs.accessSync(categoryPath, fs.constants.R_OK | fs.constants.W_OK);
+    } catch (error) {
+      throw new Error(`Upload category is not ready "${categoryPath}": ${error.message}`);
+    }
+  }
+
+  const probePath = path.join(resolvedUploadRoot, `.write-test-${Date.now()}.tmp`);
+  try {
+    fs.writeFileSync(probePath, 'ok');
+    fs.unlinkSync(probePath);
+  } catch (error) {
+    throw new Error(`Upload root write test failed "${resolvedUploadRoot}": ${error.message}`);
+  }
+
+  return resolvedUploadRoot;
+}
+
 module.exports = {
   testDatabaseConnection,
   runMigrations,
   ensureDefaultGlobalChat,
+  validateUploadDirectory,
   pool
 };
