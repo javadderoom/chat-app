@@ -57,15 +57,26 @@ const StickerItem: React.FC<{ sticker: Sticker, onSelect: (id: string) => void }
 
 export const StickerPicker: React.FC<StickerPickerProps> = ({ onSelect, onClose }) => {
     const [activePackId, setActivePackId] = React.useState(STICKER_PACKS[0].id);
-    const [visibleCount, setVisibleCount] = React.useState(30);
-    const VISIBLE_STEP = 30;
+    const [visibleCount, setVisibleCount] = React.useState(10);
+    const VISIBLE_STEP = 10;
+    const gridRef = React.useRef<HTMLDivElement>(null);
     const activePack = STICKER_PACKS.find(p => p.id === activePackId) || STICKER_PACKS[0];
     const visibleStickers = activePack.stickers.slice(0, visibleCount);
 
     React.useEffect(() => {
         // Reset incremental rendering when changing packs.
-        setVisibleCount(30);
+        setVisibleCount(10);
     }, [activePackId]);
+
+    React.useEffect(() => {
+        const grid = gridRef.current;
+        if (!grid || visibleCount >= activePack.stickers.length) return;
+
+        // If content doesn't overflow yet, preload the next chunk so scrolling can continue loading.
+        if (grid.scrollHeight <= grid.clientHeight + 1) {
+            setVisibleCount((prev) => Math.min(prev + VISIBLE_STEP, activePack.stickers.length));
+        }
+    }, [visibleCount, activePack.stickers.length]);
 
     const handleGridScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const target = e.currentTarget;
@@ -87,7 +98,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({ onSelect, onClose 
                     <button className="close_btn" onClick={onClose}>×</button>
                 </div>
 
-                <div className="sticker_grid" onScroll={handleGridScroll}>
+                <div ref={gridRef} className="sticker_grid" onScroll={handleGridScroll}>
                     {activePack.stickers.length > 0 ? (
                         visibleStickers.map(sticker => (
                             <StickerItem
