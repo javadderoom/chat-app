@@ -11,7 +11,7 @@ import './index.css';
 
 const DEFAULT_SETTINGS: UserSettings = {
   username: `User-${Math.floor(Math.random() * 1000)}`,
-  serverUrl: 'https://deroom.runflare.run',
+  serverUrl: import.meta.env.VITE_SERVER_URL || 'http://localhost:3000',
   isDemoMode: false,
 };
 

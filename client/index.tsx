@@ -10,9 +10,11 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+
 root.render(
   <React.StrictMode>
-    <AuthProvider serverUrl="https://deroom.runflare.run">
+    <AuthProvider serverUrl={serverUrl}>
       <App />
     </AuthProvider>
   </React.StrictMode>

@@ -22,8 +22,20 @@ const app = express();
 const onlineUsers = new Map();
 const uploadsDir = validateUploadDirectory(process.env.UPLOAD_DIR || path.join(__dirname, 'uploads'));
 
+const parseAllowedOrigins = (value) => {
+  if (!value || value.trim() === '' || value.trim() === '*') {
+    return '*';
+  }
+
+  return value
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+};
+
+const corsOrigin = parseAllowedOrigins(process.env.CORS_ORIGIN);
 const corsOptions = {
-  origin: '*',
+  origin: corsOrigin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
@@ -48,7 +60,7 @@ app.use('/api', messagesRoutes);
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: corsOrigin,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   }
