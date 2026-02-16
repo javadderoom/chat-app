@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare, Pin, Search, Menu } from 'lucide-react';
+import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare, Pin, Search, Menu, ArrowDown } from 'lucide-react';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { StickerPicker } from './StickerPicker';
 import { MessageBubble } from './MessageBubble';
@@ -110,6 +110,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const [searchResults, setSearchResults] = useState<Message[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+    const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLElement>(null);
@@ -119,6 +120,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const searchRequestIdRef = useRef(0);
     const prevMessagesLengthRef = useRef(messages.length);
     const prevFirstMessageIdRef = useRef<string | null>(messages[0]?.id || null);
+    const shouldForceScrollToBottomRef = useRef(true);
+    const isAutoScrollingRef = useRef(false);
+    const autoScrollReleaseTimerRef = useRef<number | null>(null);
+    const SCROLL_BOTTOM_THRESHOLD = 120;
+
+    const beginAutoScrollPhase = () => {
+        isAutoScrollingRef.current = true;
+        if (autoScrollReleaseTimerRef.current) {
+            window.clearTimeout(autoScrollReleaseTimerRef.current);
+        }
+        autoScrollReleaseTimerRef.current = window.setTimeout(() => {
+            isAutoScrollingRef.current = false;
+            autoScrollReleaseTimerRef.current = null;
+        }, 400);
+    };
 
     const truncateText = (text: string, length: number = 20) => {
         if (!text) return '';
@@ -222,10 +238,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
         : null;
 
     useEffect(() => {
+        // When opening a different chat, force one bottom scroll after messages load.
+        shouldForceScrollToBottomRef.current = true;
+    }, [activeChat?.id]);
+
+    useEffect(() => {
         // Auto-scroll only when new messages are appended, not when older messages are prepended.
         const firstMessageId = messages[0]?.id || null;
         const isPrependedHistory = firstMessageId !== prevFirstMessageIdRef.current;
-        if (messages.length > prevMessagesLengthRef.current && !isPrependedHistory) {
+
+        // On chat open/reload, jump to latest message once after initial messages are loaded.
+        if (shouldForceScrollToBottomRef.current) {
+            if (messages.length === 0) {
+                prevMessagesLengthRef.current = messages.length;
+                prevFirstMessageIdRef.current = firstMessageId;
+                return;
+            }
+            beginAutoScrollPhase();
+            requestAnimationFrame(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+            });
+            shouldForceScrollToBottomRef.current = false;
+        } else if (messages.length > prevMessagesLengthRef.current && !isPrependedHistory) {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
         prevMessagesLengthRef.current = messages.length;
@@ -234,6 +268,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
     const handleMessagesScroll = async (e: React.UIEvent<HTMLElement>) => {
         const target = e.currentTarget;
+        const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+        setShowScrollToBottom(distanceFromBottom > SCROLL_BOTTOM_THRESHOLD);
+
+        if (shouldForceScrollToBottomRef.current || isAutoScrollingRef.current) {
+            return;
+        }
+
         if (target.scrollTop > 80 || isLoadingOlderMessages || !hasMoreMessages) {
             return;
         }
@@ -249,6 +290,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
             messagesContainerRef.current.scrollTop = prevScrollTop + (nextScrollHeight - prevScrollHeight);
         });
     };
+
+    const scrollToBottom = () => {
+        beginAutoScrollPhase();
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        setShowScrollToBottom(false);
+    };
+
+    useEffect(() => {
+        if (!messagesContainerRef.current) return;
+        const target = messagesContainerRef.current;
+        const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+        setShowScrollToBottom(distanceFromBottom > SCROLL_BOTTOM_THRESHOLD);
+    }, [messages, activeChat?.id]);
+
+    useEffect(() => {
+        return () => {
+            if (autoScrollReleaseTimerRef.current) {
+                window.clearTimeout(autoScrollReleaseTimerRef.current);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         if (inputRef.current) {
@@ -644,6 +706,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 })}
                 <div ref={messagesEndRef} />
             </main>
+            
+            {showScrollToBottom && (
+                <button
+                    type="button"
+                    className="scroll_to_bottom_btn"
+                    onClick={scrollToBottom}
+                    title="Scroll to latest messages"
+                >
+                    <ArrowDown size={18} />
+                </button>
+            )}
 
             {uploadError && (
                 <div className="upload_error">

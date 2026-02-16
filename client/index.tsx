@@ -12,7 +12,7 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <AuthProvider serverUrl="http://localhost:3000">
+    <AuthProvider serverUrl="https://deroom.runflare.run">
       <App />
     </AuthProvider>
   </React.StrictMode>

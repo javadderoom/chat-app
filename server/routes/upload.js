@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '..', 'uploads');
+const uploadsDir = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
 const subdirs = ['images', 'videos', 'audio', 'voice'];
 
 subdirs.forEach(dir => {

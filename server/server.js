@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const cors = require('cors');
 const { db, pool } = require('./db/index');
 const { messages, chats, users, chatMembers } = require('./db/schema');
-const { desc, eq, and, or, sql, exists, lt } = require('drizzle-orm');
+const { desc, eq, and, or, sql, exists, lt, inArray } = require('drizzle-orm');
 const { verifyToken } = require('./middleware/auth');
 const uploadRoutes = require('./routes/upload');
 const authRoutes = require('./routes/auth');
@@ -13,16 +13,39 @@ const { verifySocket } = require('./middleware/auth');
 
 // Track online users
 const onlineUsers = new Map();
+const uploadsDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 
 const app = express();
-app.use(cors());
+const corsOptions = {
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('/{*any}', cors(corsOptions));
 app.use(express.json());
+
+// Basic backend status endpoints
+app.get('/', (_req, res) => {
+  res.status(200).json({
+    service: 'deroom-backend',
+    status: 'ok'
+  });
+});
+
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Auth routes (public)
 app.use('/api/auth', authRoutes);
 
 // Serve uploaded files statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(uploadsDir));
 
 // Upload routes (protected)
 app.use('/api/upload', verifyToken, uploadRoutes);
@@ -31,11 +54,31 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
   }
 });
 
 io.use(verifySocket);
+
+function emitChatCreated(chat, memberUserIds = []) {
+  if (!chat) return;
+
+  // Public chats are visible to everyone.
+  if (!chat.isPrivate) {
+    io.emit('chatCreated', chat);
+    return;
+  }
+
+  // Private/DM chats are only visible to members.
+  const uniqueMemberIds = Array.from(new Set(memberUserIds.filter(Boolean)));
+  for (const memberUserId of uniqueMemberIds) {
+    const socketId = onlineUsers.get(memberUserId);
+    if (socketId) {
+      io.to(socketId).emit('chatCreated', chat);
+    }
+  }
+}
 
 async function getPinnedMessage(chatId, pinnedMessageId) {
   if (!chatId || !pinnedMessageId) return null;
@@ -77,6 +120,53 @@ async function getPinnedMessage(chatId, pinnedMessageId) {
     stickerId: pinned.stickerId,
     timestamp: pinned.createdAt,
   };
+}
+
+async function getPinnedMessagesForChats(chatList) {
+  const chatsWithPinned = (chatList || []).filter(chat => chat?.id && chat?.pinnedMessageId);
+  if (chatsWithPinned.length === 0) return new Map();
+
+  const chatIds = chatsWithPinned.map(chat => chat.id);
+  const pinnedMessageIds = Array.from(new Set(chatsWithPinned.map(chat => chat.pinnedMessageId)));
+
+  const rows = await db
+    .select({
+      id: messages.id,
+      chatId: messages.chatId,
+      userId: messages.userId,
+      username: messages.username,
+      displayName: users.displayName,
+      content: messages.content,
+      messageType: messages.messageType,
+      mediaUrl: messages.mediaUrl,
+      stickerId: messages.stickerId,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .leftJoin(users, eq(messages.userId, users.id))
+    .where(and(
+      inArray(messages.id, pinnedMessageIds),
+      inArray(messages.chatId, chatIds),
+      eq(messages.isDeleted, false)
+    ));
+
+  const pinnedByChatId = new Map();
+  for (const row of rows) {
+    pinnedByChatId.set(row.chatId, {
+      id: row.id,
+      chatId: row.chatId,
+      userId: row.userId,
+      sender: row.username,
+      displayName: row.displayName || row.username,
+      text: row.content || '',
+      messageType: row.messageType,
+      mediaUrl: row.mediaUrl,
+      stickerId: row.stickerId,
+      timestamp: row.createdAt,
+    });
+  }
+
+  return pinnedByChatId;
 }
 
 io.on('connection', (socket) => {
@@ -447,7 +537,7 @@ io.on('connection', (socket) => {
       });
 
       console.log('New chat created:', newChat.id);
-      io.emit('chatCreated', newChat);
+      emitChatCreated(newChat, [socket.userId]);
     } catch (error) {
       console.error('Error creating chat:', error);
     }
@@ -690,12 +780,11 @@ app.get('/api/chats', verifyToken, async (req, res) => {
       new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
     );
 
-    const result = await Promise.all(
-      sortedChats.map(async (chat) => ({
-        ...chat,
-        pinnedMessage: await getPinnedMessage(chat.id, chat.pinnedMessageId)
-      }))
-    );
+    const pinnedByChatId = await getPinnedMessagesForChats(sortedChats);
+    const result = sortedChats.map((chat) => ({
+      ...chat,
+      pinnedMessage: pinnedByChatId.get(chat.id) || null
+    }));
 
     res.json(result);
   } catch (error) {
@@ -935,8 +1024,8 @@ app.post('/api/chats/dm', verifyToken, async (req, res) => {
       { chatId: newChat.id, userId: targetUser.id, role: 'admin' }
     ]);
 
-    // Emit socket event
-    io.emit('chatCreated', newChat);
+    // Emit to DM members only
+    emitChatCreated(newChat, [currentUserId, targetUser.id]);
 
     res.json(newChat);
   } catch (error) {
@@ -1082,6 +1171,23 @@ server.listen(PORT, '0.0.0.0', async () => {
     `).catch(() => {});
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_chats_pinned_message_id ON chats(pinned_message_id)
+    `).catch(() => {});
+    await pool.query(`
+      CREATE EXTENSION IF NOT EXISTS pg_trgm
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_messages_chat_created_not_deleted
+      ON messages (chat_id, created_at DESC)
+      WHERE is_deleted = false
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_messages_created_not_deleted
+      ON messages (created_at DESC)
+      WHERE is_deleted = false
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_messages_content_trgm
+      ON messages USING GIN (content gin_trgm_ops)
     `).catch(() => {});
     
     console.log('Migrations completed');

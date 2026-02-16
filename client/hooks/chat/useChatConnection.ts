@@ -277,9 +277,9 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
             if (!response.ok) return 0;
 
             const dbMessages: DbMessage[] = await response.json();
-            const olderMessages = dbMessages.reverse().map(mapDbMessage);
-            const existingIds = new Set(messages.map(m => m.id));
-            const uniqueOlderMessages = olderMessages.filter(m => !existingIds.has(m.id));
+            const olderMessages: Message[] = dbMessages.reverse().map(mapDbMessage);
+            const existingIds: Set<string> = new Set(messages.map((m: Message) => m.id));
+            const uniqueOlderMessages: Message[] = olderMessages.filter((m: Message) => !existingIds.has(m.id));
 
             if (uniqueOlderMessages.length > 0) {
                 setMessages(prev => [...uniqueOlderMessages, ...prev]);

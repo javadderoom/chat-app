@@ -609,9 +609,39 @@ footer {
     background: transparent;
 }
 
+.scroll_to_bottom_btn {
+    position: absolute;
+    right: 16px;
+    bottom: 88px;
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(56, 139, 253, 0.45);
+    background: rgba(13, 17, 23, 0.9);
+    color: #58a6ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 35;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.scroll_to_bottom_btn:hover {
+    transform: translateY(-2px);
+    background: rgba(22, 27, 34, 0.98);
+    border-color: rgba(56, 139, 253, 0.75);
+}
+
 @media (min-width: 640px) {
     footer {
         padding: 12px 24px 24px;
+    }
+
+    .scroll_to_bottom_btn {
+        right: 24px;
+        bottom: 102px;
     }
 }
 

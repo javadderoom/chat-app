@@ -5,11 +5,11 @@ module.exports = {
   out: './db/migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
+    host: process.env.DB_HOST || '46.245.77.82',
+    port: parseInt(process.env.DB_PORT || '30994'),
     user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_NAME || 'chat_app',
+    password: process.env.DB_PASSWORD || 'inPrjKiQm45OYynACz6m',
+    database: process.env.DB_NAME || 'databaseoce_db',
     ssl: false,
   },
 };
