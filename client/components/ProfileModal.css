@@ -3,7 +3,7 @@
     border: 1px solid #30363d;
     border-radius: 12px;
     padding: 24px;
-    min-width: 280px;
+    width: min(92vw, 460px);
     text-align: center;
     position: relative;
 }
@@ -29,12 +29,11 @@
 }
 
 .profile_avatar {
-    width: 80px;
-    height: 80px;
-    margin: 0 auto 16px;
-    border-radius: 50%;
+    width: calc(100% + 48px);
+    height: 240px;
+    margin: -24px -24px 16px;
+    border-radius: 12px 12px 0 0;
     overflow: hidden;
-    border: 2px solid #30363d;
 }
 
 .profile_avatar img {
@@ -51,7 +50,7 @@
     justify-content: center;
     background: #21262d;
     color: #58a6ff;
-    font-size: 32px;
+    font-size: 56px;
     font-weight: 600;
 }
 
@@ -87,4 +86,17 @@
 
 .profile_dm_button:hover {
     background: #2ea043;
+}
+
+@media (max-width: 640px) {
+    .profile_modal {
+        padding: 18px;
+        width: min(94vw, 420px);
+    }
+
+    .profile_avatar {
+        width: calc(100% + 36px);
+        height: 200px;
+        margin: -18px -18px 14px;
+    }
 }
