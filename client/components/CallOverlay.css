@@ -1,0 +1,123 @@
+.call_overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    background: rgba(2, 6, 23, 0.72);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.call_card {
+    width: min(540px, 100%);
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.98);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+
+.call_header {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.call_header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #e2e8f0;
+}
+
+.call_header p {
+    margin: 4px 0 0;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.call_error {
+    margin: 10px 14px 0;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fecaca;
+    background: rgba(127, 29, 29, 0.35);
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+}
+
+.call_media {
+    position: relative;
+    min-height: 220px;
+    background: #020617;
+}
+
+.call_video_remote {
+    width: 100%;
+    min-height: 220px;
+    max-height: 420px;
+    object-fit: cover;
+    background: #000;
+}
+
+.call_video_local {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    width: 150px;
+    height: 100px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    object-fit: cover;
+    background: #0f172a;
+}
+
+.call_audio_only {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #cbd5e1;
+}
+
+.call_actions {
+    padding: 14px 16px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+}
+
+.call_btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 999px;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.call_btn:hover {
+    transform: scale(1.06);
+}
+
+.call_btn.accept {
+    background: #16a34a;
+}
+
+.call_btn.end {
+    background: #dc2626;
+}
+
+@media (max-width: 640px) {
+    .call_video_local {
+        width: 110px;
+        height: 74px;
+    }
+}

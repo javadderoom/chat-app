@@ -1,0 +1,11 @@
+services:
+  coturn:
+    image: coturn/coturn:latest
+    container_name: blackout-coturn
+    restart: unless-stopped
+    network_mode: host
+    command: >
+      -c /etc/coturn/turnserver.conf
+      --log-file=stdout
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro

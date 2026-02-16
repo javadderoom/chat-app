@@ -37,7 +37,9 @@ const App: React.FC = () => {
   const {
     messages, chats, activeChatId, setActiveChatId, status, fetchChats,
     sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, deleteChat, pinMessage, unpinMessage, startTyping, stopTyping, users, typingUsers,
-    hasMoreMessages, isLoadingOlderMessages, loadOlderMessages
+    hasMoreMessages, isLoadingOlderMessages, loadOlderMessages,
+    callStatus, callMode, incomingCall, localStream, remoteStream, callPeerName, callError,
+    startVoiceCall, startVideoCall, acceptCall, declineCall, endCall
   } = useChatConnection(settings, token, user);
 
   const handleSaveSettings = (newSettings: UserSettings) => {
@@ -113,6 +115,18 @@ return (
         hasMoreMessages={hasMoreMessages}
         isLoadingOlderMessages={isLoadingOlderMessages}
         loadOlderMessages={loadOlderMessages}
+        callStatus={callStatus}
+        callMode={callMode}
+        incomingCall={incomingCall}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        callPeerName={callPeerName}
+        callError={callError}
+        startVoiceCall={startVoiceCall}
+        startVideoCall={startVideoCall}
+        acceptCall={acceptCall}
+        declineCall={declineCall}
+        endCall={endCall}
       />
 
       <SettingsPanel

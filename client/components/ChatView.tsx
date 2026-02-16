@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare, Pin, Search, Menu, ArrowDown } from 'lucide-react';
+import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare, Pin, Search, Menu, ArrowDown, Phone } from 'lucide-react';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { StickerPicker } from './StickerPicker';
 import { MessageBubble } from './MessageBubble';
@@ -11,6 +11,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { ForwardModal } from './ForwardModal';
 import { ChatSettingsModal } from './ChatSettingsModal';
 import { ProfileModal } from './ProfileModal';
+import { CallOverlay } from './CallOverlay';
 
 interface Chat {
     id: string;
@@ -61,6 +62,18 @@ interface ChatViewProps {
     hasMoreMessages: boolean;
     isLoadingOlderMessages: boolean;
     loadOlderMessages: () => Promise<number>;
+    callStatus: 'idle' | 'calling' | 'incoming' | 'connecting' | 'in-call';
+    callMode: 'audio' | 'video';
+    incomingCall: { callerDisplayName: string; mode: 'audio' | 'video' } | null;
+    localStream: MediaStream | null;
+    remoteStream: MediaStream | null;
+    callPeerName: string;
+    callError: string | null;
+    startVoiceCall: () => void;
+    startVideoCall: () => void;
+    acceptCall: () => void;
+    declineCall: () => void;
+    endCall: () => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -93,7 +106,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
     typingUsers,
     hasMoreMessages,
     isLoadingOlderMessages,
-    loadOlderMessages
+    loadOlderMessages,
+    callStatus,
+    callMode,
+    incomingCall,
+    localStream,
+    remoteStream,
+    callPeerName,
+    callError,
+    startVoiceCall,
+    startVideoCall,
+    acceptCall,
+    declineCall,
+    endCall
 }) => {
     const userAvatars: Record<string, string> = Object.fromEntries(
         Object.entries(users).map(([username, data]: [string, UserInfo]) => [username, data.avatarUrl || ''])
@@ -579,6 +604,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <button
                         type="button"
                         className="chat_settings_btn"
+                        title="Start voice call"
+                        onClick={startVoiceCall}
+                        disabled={!activeChat?.id || settings.isDemoMode}
+                    >
+                        <Phone size={20} />
+                    </button>
+                    <button
+                        type="button"
+                        className="chat_settings_btn"
+                        title="Start video call"
+                        onClick={startVideoCall}
+                        disabled={!activeChat?.id || settings.isDemoMode}
+                    >
+                        <VideoIcon size={20} />
+                    </button>
+                    <button
+                        type="button"
+                        className="chat_settings_btn"
                         title="Search"
                         onClick={() => setIsSearchExpanded(true)}
                     >
@@ -760,6 +803,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 <div className="upload_error">
                     {uploadError}
                     <button onClick={() => setUploadError(null)}>×</button>
+                </div>
+            )}
+
+            {callError && callStatus === 'idle' && (
+                <div className="upload_error">
+                    {callError}
                 </div>
             )}
 
@@ -963,6 +1012,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 user={profileUser}
                 onClose={() => setProfileUser(null)}
                 onDirectMessage={handleDirectMessage}
+            />
+
+            <CallOverlay
+                callStatus={callStatus}
+                callMode={callMode}
+                incomingCall={incomingCall}
+                localStream={localStream}
+                remoteStream={remoteStream}
+                callPeerName={callPeerName}
+                callError={callError}
+                acceptCall={acceptCall}
+                declineCall={declineCall}
+                endCall={endCall}
             />
         </div>
     );

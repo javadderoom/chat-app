@@ -1,6 +1,7 @@
 const { db, pool } = require('./db/index');
 const { messages, chats, users, chatMembers } = require('./db/schema');
 const { eq, and } = require('drizzle-orm');
+const { registerCallSignalingHandlers } = require('./callSignaling');
 
 function createSocketHandlers(io, onlineUsers) {
   async function getReceiptAggregates(messageIds = []) {
@@ -259,6 +260,15 @@ function createSocketHandlers(io, onlineUsers) {
         chatId,
         userId
       });
+    });
+
+    registerCallSignalingHandlers({
+      socket,
+      io,
+      onlineUsers,
+      userId,
+      username,
+      displayName
     });
 
     socket.on('message', async (data) => {
@@ -634,6 +644,11 @@ function createSocketHandlers(io, onlineUsers) {
         socket.to(chatId).emit('typingStopped', {
           chatId,
           userId
+        });
+        socket.to(chatId).emit('call:ended', {
+          chatId,
+          endedById: userId,
+          reason: 'disconnected'
         });
       }
       onlineUsers.delete(userId);

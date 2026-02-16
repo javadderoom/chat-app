@@ -4,6 +4,7 @@ import { Message, ConnectionStatus, UserSettings, Chat, UserInfo } from '../../t
 import { DbMessage } from './types';
 import { useSocketEvents } from './useSocketEvents';
 import { useChatActions } from './useChatActions';
+import { useWebRTCCall } from './useWebRTCCall';
 
 interface User {
     id: string;
@@ -317,6 +318,12 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         mapDbMessage
     ]);
 
+    const call = useWebRTCCall({
+        socket,
+        activeChatId,
+        user
+    });
+
     return {
         messages,
         chats,
@@ -329,6 +336,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         hasMoreMessages,
         isLoadingOlderMessages,
         loadOlderMessages,
+        ...call,
         ...actions
     };
 };
