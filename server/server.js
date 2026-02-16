@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const cors = require('cors');
 const { db, pool } = require('./db/index');
 const { messages, chats, users, chatMembers } = require('./db/schema');
-const { desc, eq, and, or, sql, exists } = require('drizzle-orm');
+const { desc, eq, and, or, sql, exists, lt } = require('drizzle-orm');
 const { verifyToken } = require('./middleware/auth');
 const uploadRoutes = require('./routes/upload');
 const authRoutes = require('./routes/auth');
@@ -582,11 +582,32 @@ io.on('connection', (socket) => {
 // Example API endpoint to get recent messages (protected)
 app.get('/api/messages', verifyToken, async (req, res) => {
   try {
-    const { chatId } = req.query;
+    const { chatId, before, limit, q } = req.query;
+    const rawLimit = Array.isArray(limit) ? limit[0] : limit;
+    const rawBefore = Array.isArray(before) ? before[0] : before;
+    const rawQuery = Array.isArray(q) ? q[0] : q;
+
+    const parsedLimit = Number.parseInt(rawLimit, 10);
+    const pageSize = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 50;
 
     let whereClause = eq(messages.isDeleted, false);
     if (chatId) {
       whereClause = and(eq(messages.isDeleted, false), eq(messages.chatId, chatId));
+    }
+    if (rawQuery && rawQuery.trim()) {
+      whereClause = and(
+        whereClause,
+        sql`COALESCE(${messages.content}, '') ILIKE ${`%${rawQuery.trim()}%`}`
+      );
+    }
+    if (rawBefore) {
+      const beforeValue = /^\d+$/.test(rawBefore) ? Number(rawBefore) : rawBefore;
+      const beforeDate = new Date(beforeValue);
+      if (!Number.isNaN(beforeDate.getTime())) {
+        whereClause = and(whereClause, lt(messages.createdAt, beforeDate));
+      }
     }
 
     // Join messages with users to get display names
@@ -618,7 +639,7 @@ app.get('/api/messages', verifyToken, async (req, res) => {
       .leftJoin(users, eq(messages.userId, users.id))
       .where(whereClause)
       .orderBy(desc(messages.createdAt))
-      .limit(50);
+      .limit(pageSize);
 
     console.log(recentMessages);
     res.json(recentMessages);

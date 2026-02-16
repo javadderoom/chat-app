@@ -26,10 +26,130 @@ header {
     gap: 20px;
 }
 
+.menu_toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.menu_toggle:hover {
+    background: var(--glass-hover);
+    color: var(--text-bright);
+}
+
 .header_right {
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.header_search_overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: rgba(13, 17, 23, 0.98);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 12px 18px;
+    z-index: 70;
+    color: var(--text-bright);
+}
+
+.header_search_box {
+    width: min(900px, 100%);
+    border: 1px solid var(--glass-border);
+    background: rgba(22, 27, 34, 0.98);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+}
+
+.header_search_box input {
+    border: none;
+    background: transparent;
+    outline: none;
+    color: var(--text-bright);
+    width: 100%;
+    font-size: 14px;
+}
+
+.header_search_box input::placeholder {
+    color: var(--text-dim);
+}
+
+.header_search_icon_btn {
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 50%;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 28px;
+}
+
+.header_search_icon_btn:hover {
+    color: var(--text-bright);
+    background: var(--glass-hover);
+}
+
+.header_search_results {
+    position: absolute;
+    top: 56px;
+    width: min(900px, calc(100% - 36px));
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    background: rgba(22, 27, 34, 0.98);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+}
+
+.header_search_result_item {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text-bright);
+    text-align: left;
+    cursor: pointer;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.header_search_result_item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.header_search_result_name {
+    font-size: 11px;
+    color: #58a6ff;
+    font-weight: 600;
+}
+
+.header_search_result_text {
+    font-size: 13px;
+    color: #c9d1d9;
+}
+
+.header_search_result_hint {
+    padding: 12px;
+    color: var(--text-dim);
+    font-size: 12px;
 }
 
 .chat_settings_btn {
@@ -265,14 +385,6 @@ header {
     font-size: 11px;
     color: #8b949e;
 }
-.menu_toggle {
-    display: none;
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-}
-
 .chat_title h2 {
     font-size: 1.1rem;
     font-weight: 700;
@@ -1101,12 +1213,6 @@ footer {
     font-size: 10px;
     color: var(--neon-blue);
     font-weight: bold;
-}
-
-@media (max-width: 768px) {
-    .menu_toggle {
-        display: block;
-    }
 }
 
 /* Stickers */

@@ -13,6 +13,7 @@ interface User {
 }
 
 export const useChatConnection = (settings: UserSettings, token: string | null, user: User | null) => {
+    const PAGE_SIZE = 50;
     const [messages, setMessages] = useState<Message[]>([]);
     const [chats, setChats] = useState<Chat[]>([]);
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -20,6 +21,8 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     const [socket, setSocket] = useState<Socket | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const [users, setUsers] = useState<Record<string, UserInfo>>({});
+    const [hasMoreMessages, setHasMoreMessages] = useState(true);
+    const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
 
     const settingsRef = useRef(settings);
     useEffect(() => {
@@ -60,6 +63,29 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         setMessages(prev => [...prev, newMessage]);
         return id;
     }, []);
+
+    const mapDbMessage = useCallback((dbMsg: DbMessage): Message => ({
+        id: dbMsg.id,
+        text: dbMsg.content,
+        sender: dbMsg.username,
+        displayName: dbMsg.displayName || dbMsg.username,
+        timestamp: new Date(dbMsg.createdAt).getTime(),
+        isMe: dbMsg.username === settings.username,
+        isSystem: false,
+        messageType: dbMsg.messageType as any,
+        mediaUrl: dbMsg.mediaUrl,
+        mediaType: dbMsg.mediaType,
+        mediaDuration: dbMsg.mediaDuration,
+        fileName: dbMsg.fileName,
+        fileSize: dbMsg.fileSize,
+        replyToId: dbMsg.replyToId,
+        chatId: dbMsg.chatId,
+        reactions: dbMsg.reactions || {},
+        isForwarded: dbMsg.isForwarded,
+        forwardedFrom: dbMsg.forwardedFrom,
+        stickerId: dbMsg.stickerId,
+        updatedAt: dbMsg.updatedAt ? new Date(dbMsg.updatedAt).getTime() : undefined
+    }), [settings.username]);
 
     // Initialize socket events
     useSocketEvents({
@@ -193,41 +219,21 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
             if (!activeChatId) return;
 
             setMessages([]);
+            setHasMoreMessages(true);
+            setIsLoadingOlderMessages(false);
 
             try {
                 console.log(`Loading history for chat: ${activeChatId}`);
-                const response = await fetch(`${settings.serverUrl}/api/messages?chatId=${activeChatId}`, {
+                const response = await fetch(`${settings.serverUrl}/api/messages?chatId=${activeChatId}&limit=${PAGE_SIZE}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
                 });
                 if (response.ok) {
                     const dbMessages: DbMessage[] = await response.json();
-                    const loadedMessages: Message[] = dbMessages
-                        .reverse()
-                        .map((dbMsg) => ({
-                            id: dbMsg.id,
-                            text: dbMsg.content,
-                            sender: dbMsg.username,
-                            displayName: dbMsg.displayName || dbMsg.username,
-                            timestamp: new Date(dbMsg.createdAt).getTime(),
-                            isMe: dbMsg.username === settings.username,
-                            isSystem: false,
-                            messageType: dbMsg.messageType as any,
-                            mediaUrl: dbMsg.mediaUrl,
-                            mediaType: dbMsg.mediaType,
-                            mediaDuration: dbMsg.mediaDuration,
-                            fileName: dbMsg.fileName,
-                            fileSize: dbMsg.fileSize,
-                            replyToId: dbMsg.replyToId,
-                            chatId: dbMsg.chatId,
-                            reactions: dbMsg.reactions || {},
-                            isForwarded: dbMsg.isForwarded,
-                            forwardedFrom: dbMsg.forwardedFrom,
-                            stickerId: dbMsg.stickerId,
-                            updatedAt: dbMsg.updatedAt ? new Date(dbMsg.updatedAt).getTime() : undefined
-                        }));
+                    const loadedMessages: Message[] = dbMessages.reverse().map(mapDbMessage);
                     setMessages(loadedMessages);
+                    setHasMoreMessages(dbMessages.length === PAGE_SIZE);
                 }
             } catch (error) {
                 console.error('Error loading messages:', error);
@@ -239,7 +245,65 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         if (socket && socket.connected && activeChatId) {
             socket.emit('joinChat', activeChatId);
         }
-    }, [activeChatId, status, socket, settings.serverUrl, settings.isDemoMode, settings.username, token]);
+    }, [activeChatId, status, socket, settings.serverUrl, settings.isDemoMode, token, mapDbMessage]);
+
+    const loadOlderMessages = useCallback(async (): Promise<number> => {
+        if (
+            settings.isDemoMode ||
+            status !== ConnectionStatus.CONNECTED ||
+            !activeChatId ||
+            !token ||
+            isLoadingOlderMessages ||
+            !hasMoreMessages ||
+            messages.length === 0
+        ) {
+            return 0;
+        }
+
+        const oldestTimestamp = messages[0]?.timestamp;
+        if (!oldestTimestamp) return 0;
+
+        setIsLoadingOlderMessages(true);
+        try {
+            const response = await fetch(
+                `${settings.serverUrl}/api/messages?chatId=${activeChatId}&before=${oldestTimestamp}&limit=${PAGE_SIZE}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            );
+
+            if (!response.ok) return 0;
+
+            const dbMessages: DbMessage[] = await response.json();
+            const olderMessages = dbMessages.reverse().map(mapDbMessage);
+            const existingIds = new Set(messages.map(m => m.id));
+            const uniqueOlderMessages = olderMessages.filter(m => !existingIds.has(m.id));
+
+            if (uniqueOlderMessages.length > 0) {
+                setMessages(prev => [...uniqueOlderMessages, ...prev]);
+            }
+
+            setHasMoreMessages(dbMessages.length === PAGE_SIZE);
+            return uniqueOlderMessages.length;
+        } catch (error) {
+            console.error('Error loading older messages:', error);
+            return 0;
+        } finally {
+            setIsLoadingOlderMessages(false);
+        }
+    }, [
+        settings.isDemoMode,
+        status,
+        activeChatId,
+        token,
+        isLoadingOlderMessages,
+        hasMoreMessages,
+        messages,
+        settings.serverUrl,
+        mapDbMessage
+    ]);
 
     return {
         messages,
@@ -249,6 +313,9 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         status,
         fetchChats,
         users,
+        hasMoreMessages,
+        isLoadingOlderMessages,
+        loadOlderMessages,
         ...actions
     };
 };
