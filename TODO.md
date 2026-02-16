@@ -1,0 +1,32 @@
+# TODO
+
+- [ ] Threads per message (nested replies with dedicated thread view)
+- [ ] Mentions (`@user`) with mention notifications
+- [ ] Unread counters per chat + jump to first unread
+- [ ] Push notifications (web + mobile PWA)
+- [ ] Message bookmarks/saved messages
+- [ ] Per-chat drafts (persist unsent text/media caption)
+- [ ] Message pin history (not just single pinned message)
+- [ ] Scheduled messages
+- [ ] Message expiry/self-destruct timer
+- [ ] Link previews (OpenGraph metadata extraction + cache)
+- [ ] File/document uploads with type icons and preview
+- [ ] Image/video compression before upload
+- [ ] Read receipts granularity (`delivered`, `seen`, `seen by`) refinements
+- [ ] Typing indicators with per-user animated avatars
+- [ ] Presence (`online`, `away`, `last seen`)
+- [ ] Voice/video calls (WebRTC)
+- [ ] Screen sharing in calls
+- [ ] Chat search improvements (full-text ranking, filters by sender/date/type)
+- [ ] Advanced moderation tools (mute/kick/ban, slow mode)
+- [ ] Role-based permissions (owner/admin/mod/member)
+- [ ] Audit logs for admin actions
+- [ ] Chat invite links with expiry and usage limits
+- [ ] E2E encryption for DMs (or optional secure mode)
+- [ ] Multi-device session management (active sessions + revoke)
+- [ ] 2FA for account security
+- [ ] Theme system + custom chat backgrounds
+- [ ] Rich message formatting (markdown/code blocks/spoilers)
+- [ ] Polls and reactions summary analytics
+- [ ] Bot/webhook integration API
+- [ ] Observability dashboard (metrics, queue health, DB query latency)
