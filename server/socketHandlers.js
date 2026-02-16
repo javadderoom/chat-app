@@ -167,6 +167,7 @@ function createSocketHandlers(io, onlineUsers) {
   io.on('connection', (socket) => {
     const userId = socket.userId;
     const username = socket.user?.username;
+    const displayName = socket.user?.displayName || username;
 
     console.log(`User connected: ${username} (${socket.id})`);
     onlineUsers.set(userId, socket.id);
@@ -236,6 +237,28 @@ function createSocketHandlers(io, onlineUsers) {
       } catch (error) {
         console.error('Error marking chat seen:', error);
       }
+    });
+
+    socket.on('typingStart', (data) => {
+      const chatId = data?.chatId;
+      if (!chatId || !userId) return;
+
+      socket.to(chatId).emit('typingStarted', {
+        chatId,
+        userId,
+        username,
+        displayName
+      });
+    });
+
+    socket.on('typingStop', (data) => {
+      const chatId = data?.chatId;
+      if (!chatId || !userId) return;
+
+      socket.to(chatId).emit('typingStopped', {
+        chatId,
+        userId
+      });
     });
 
     socket.on('message', async (data) => {
@@ -311,6 +334,10 @@ function createSocketHandlers(io, onlineUsers) {
         }
 
         if (insertValues.chatId) {
+          socket.to(insertValues.chatId).emit('typingStopped', {
+            chatId: insertValues.chatId,
+            userId
+          });
           io.to(insertValues.chatId).emit('message', {
             ...data,
             id: savedMessage.id,
@@ -602,6 +629,13 @@ function createSocketHandlers(io, onlineUsers) {
     });
 
     socket.on('disconnect', () => {
+      const activeRooms = Array.from(socket.rooms).filter(room => room !== socket.id);
+      for (const chatId of activeRooms) {
+        socket.to(chatId).emit('typingStopped', {
+          chatId,
+          userId
+        });
+      }
       onlineUsers.delete(userId);
     });
   });

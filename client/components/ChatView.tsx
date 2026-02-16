@@ -45,6 +45,8 @@ interface ChatViewProps {
     toggleReaction: (messageId: string, emoji: string) => void;
     forwardMessage: (message: Message, targetChatId: string) => void;
     sendSticker: (stickerId: string, replyToId?: string) => void;
+    startTyping: () => void;
+    stopTyping: () => void;
     updateChat: (chatId: string, data: { name?: string; description?: string; imageUrl?: string }) => void;
     deleteChat: (chatId: string) => void;
     pinMessage: (messageId: string) => void;
@@ -55,6 +57,7 @@ interface ChatViewProps {
     user?: User;
     token: string | null;
     users: Record<string, UserInfo>;
+    typingUsers: Array<{ userId: string; displayName: string }>;
     hasMoreMessages: boolean;
     isLoadingOlderMessages: boolean;
     loadOlderMessages: () => Promise<number>;
@@ -75,6 +78,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     toggleReaction,
     forwardMessage,
     sendSticker,
+    startTyping,
+    stopTyping,
     updateChat,
     deleteChat,
     pinMessage,
@@ -85,6 +90,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     user,
     token,
     users,
+    typingUsers,
     hasMoreMessages,
     isLoadingOlderMessages,
     loadOlderMessages
@@ -123,6 +129,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const shouldForceScrollToBottomRef = useRef(true);
     const isAutoScrollingRef = useRef(false);
     const autoScrollReleaseTimerRef = useRef<number | null>(null);
+    const typingStopTimerRef = useRef<number | null>(null);
     const SCROLL_BOTTOM_THRESHOLD = 120;
 
     const beginAutoScrollPhase = () => {
@@ -309,8 +316,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
             if (autoScrollReleaseTimerRef.current) {
                 window.clearTimeout(autoScrollReleaseTimerRef.current);
             }
+            if (typingStopTimerRef.current) {
+                window.clearTimeout(typingStopTimerRef.current);
+            }
+            stopTyping();
         };
-    }, []);
+    }, [stopTyping]);
 
     useEffect(() => {
         if (inputRef.current) {
@@ -327,15 +338,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
             editMessage(editingMessageId, input);
             setEditingMessageId(null);
             setInput('');
+            stopTyping();
         } else if (pendingUpload) {
             sendMediaMessage(pendingUpload, replyingToMessage?.id, input.trim() || undefined);
             setPendingUpload(null);
             setReplyingToMessage(null);
             setInput('');
+            stopTyping();
         } else {
             sendMessage(input, replyingToMessage?.id);
             setReplyingToMessage(null);
             setInput('');
+            stopTyping();
         }
     };
 
@@ -382,6 +396,30 @@ export const ChatView: React.FC<ChatViewProps> = ({
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
+
+    useEffect(() => {
+        if (editingMessageId || isRecording) {
+            stopTyping();
+            return;
+        }
+
+        if (input.trim().length > 0) {
+            startTyping();
+            if (typingStopTimerRef.current) {
+                window.clearTimeout(typingStopTimerRef.current);
+            }
+            typingStopTimerRef.current = window.setTimeout(() => {
+                stopTyping();
+                typingStopTimerRef.current = null;
+            }, 1300);
+        } else {
+            if (typingStopTimerRef.current) {
+                window.clearTimeout(typingStopTimerRef.current);
+                typingStopTimerRef.current = null;
+            }
+            stopTyping();
+        }
+    }, [input, editingMessageId, isRecording, startTyping, stopTyping]);
 
     const startEditing = (msg: any) => {
         setEditingMessageId(msg.id);
@@ -725,6 +763,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </div>
             )}
 
+            {typingUsers.length > 0 && (
+                <div className="typing_indicator">
+                    {typingUsers.length === 1
+                        ? `${typingUsers[0].displayName} is typing...`
+                        : `${typingUsers.slice(0, 2).map(u => u.displayName).join(', ')}${typingUsers.length > 2 ? ` +${typingUsers.length - 2}` : ''} are typing...`}
+                </div>
+            )}
+
             <footer>
                 {pendingUpload && (
                     <div className="editing_preview media_mode">
@@ -826,6 +872,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                         ref={inputRef}
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
+                                        onBlur={() => stopTyping()}
                                         placeholder={editingMessageId ? "Edit your message..." : replyingToMessage ? "Write a reply..." : (status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting...")}
                                         disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
                                         className="message_input"

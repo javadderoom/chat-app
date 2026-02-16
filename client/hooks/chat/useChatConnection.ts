@@ -21,6 +21,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     const [socket, setSocket] = useState<Socket | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const [users, setUsers] = useState<Record<string, UserInfo>>({});
+    const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; displayName: string }>>([]);
     const [hasMoreMessages, setHasMoreMessages] = useState(true);
     const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
 
@@ -99,6 +100,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         setMessages,
         setChats,
         setStatus,
+        setTypingUsers,
         addMessage
     });
 
@@ -164,6 +166,10 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
             console.error('Error fetching users:', error);
         }
     }, [settings.serverUrl, token]);
+
+    useEffect(() => {
+        setTypingUsers([]);
+    }, [activeChatId]);
 
     useEffect(() => {
         if (status === ConnectionStatus.CONNECTED) {
@@ -319,6 +325,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         status,
         fetchChats,
         users,
+        typingUsers,
         hasMoreMessages,
         isLoadingOlderMessages,
         loadOlderMessages,

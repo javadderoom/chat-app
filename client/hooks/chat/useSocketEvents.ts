@@ -10,6 +10,7 @@ interface UseSocketEventsProps {
     setMessages: Dispatch<SetStateAction<Message[]>>;
     setChats: Dispatch<SetStateAction<Chat[]>>;
     setStatus: Dispatch<SetStateAction<ConnectionStatus>>;
+    setTypingUsers: Dispatch<SetStateAction<Array<{ userId: string; displayName: string }>>>;
     addMessage: (text: string, sender: string, isMe?: boolean, isSystem?: boolean, replyToId?: string, displayName?: string) => string;
 }
 
@@ -21,6 +22,7 @@ export const useSocketEvents = ({
     setMessages,
     setChats,
     setStatus,
+    setTypingUsers,
     addMessage
 }: UseSocketEventsProps) => {
     useEffect(() => {
@@ -50,6 +52,7 @@ export const useSocketEvents = ({
 
         const handleDisconnect = (reason: string) => {
             setStatus(ConnectionStatus.DISCONNECTED);
+            setTypingUsers([]);
             addMessage(`Disconnected: ${reason}`, "System", false, true);
         };
 
@@ -228,6 +231,26 @@ export const useSocketEvents = ({
             ));
         };
 
+        const handleTypingStarted = (data: { chatId: string; userId: string; username?: string; displayName?: string }) => {
+            if (!data?.chatId || !data?.userId) return;
+            if (data.chatId !== activeChatIdRef.current) return;
+
+            const normalizedSelf = (settingsRef.current.username || '').trim().toLowerCase();
+            const normalizedIncoming = (data.username || '').trim().toLowerCase();
+            if (normalizedIncoming && normalizedIncoming === normalizedSelf) return;
+
+            setTypingUsers(prev => {
+                if (prev.some(u => u.userId === data.userId)) return prev;
+                return [...prev, { userId: data.userId, displayName: data.displayName || data.username || 'Someone' }];
+            });
+        };
+
+        const handleTypingStopped = (data: { chatId: string; userId: string }) => {
+            if (!data?.chatId || !data?.userId) return;
+            if (data.chatId !== activeChatIdRef.current) return;
+            setTypingUsers(prev => prev.filter(u => u.userId !== data.userId));
+        };
+
         socket.on('connect', handleConnect);
         socket.on('connect_error', handleConnectError);
         socket.on('disconnect', handleDisconnect);
@@ -239,6 +262,8 @@ export const useSocketEvents = ({
         socket.on('chatCreated', handleChatCreated);
         socket.on('chatUpdated', handleChatUpdated);
         socket.on('chatPinnedUpdated', handleChatPinnedUpdated);
+        socket.on('typingStarted', handleTypingStarted);
+        socket.on('typingStopped', handleTypingStopped);
 
         return () => {
             socket.off('connect', handleConnect);
@@ -252,6 +277,8 @@ export const useSocketEvents = ({
             socket.off('chatCreated', handleChatCreated);
             socket.off('chatUpdated', handleChatUpdated);
             socket.off('chatPinnedUpdated', handleChatPinnedUpdated);
+            socket.off('typingStarted', handleTypingStarted);
+            socket.off('typingStopped', handleTypingStopped);
         };
-    }, [socket, settingsRef, activeChatIdRef, setMessages, setChats, setStatus, addMessage]);
+    }, [socket, settingsRef, activeChatIdRef, setMessages, setChats, setStatus, setTypingUsers, addMessage]);
 };

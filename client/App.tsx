@@ -36,7 +36,7 @@ const App: React.FC = () => {
 
   const {
     messages, chats, activeChatId, setActiveChatId, status, fetchChats,
-    sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, deleteChat, pinMessage, unpinMessage, users,
+    sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, deleteChat, pinMessage, unpinMessage, startTyping, stopTyping, users, typingUsers,
     hasMoreMessages, isLoadingOlderMessages, loadOlderMessages
   } = useChatConnection(settings, token, user);
 
@@ -97,6 +97,8 @@ return (
         toggleReaction={toggleReaction}
         forwardMessage={forwardMessage}
         sendSticker={sendSticker}
+        startTyping={startTyping}
+        stopTyping={stopTyping}
         updateChat={updateChat}
         deleteChat={deleteChat}
         pinMessage={pinMessage}
@@ -107,6 +109,7 @@ return (
         user={user}
         token={token}
         users={users}
+        typingUsers={typingUsers}
         hasMoreMessages={hasMoreMessages}
         isLoadingOlderMessages={isLoadingOlderMessages}
         loadOlderMessages={loadOlderMessages}

@@ -373,6 +373,16 @@ export const useChatActions = ({
         }
     }, [socket, addMessage, activeChatId, settingsRef, setMessages, setChats]);
 
+    const startTyping = useCallback(() => {
+        if (!socket || !socket.connected || !activeChatId || settingsRef.current.isDemoMode) return;
+        socket.emit('typingStart', { chatId: activeChatId });
+    }, [socket, activeChatId, settingsRef]);
+
+    const stopTyping = useCallback(() => {
+        if (!socket || !socket.connected || !activeChatId || settingsRef.current.isDemoMode) return;
+        socket.emit('typingStop', { chatId: activeChatId });
+    }, [socket, activeChatId, settingsRef]);
+
     return {
         sendMessage,
         sendMediaMessage,
@@ -386,6 +396,8 @@ export const useChatActions = ({
         updateChat,
         deleteChat,
         pinMessage,
-        unpinMessage
+        unpinMessage,
+        startTyping,
+        stopTyping
     };
 };
