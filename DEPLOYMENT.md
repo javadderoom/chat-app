@@ -13,6 +13,7 @@ This project is deployed with a single `docker compose` stack containing:
 - Public server IP (you have: `45.149.76.159`)
 - Open firewall/security group ports:
   - `80/tcp`
+  - `443/tcp`
   - `3478/tcp`, `3478/udp`
   - `5349/tcp`, `5349/udp`
   - `49152-65535/udp`
@@ -31,6 +32,11 @@ Required values in `.env`:
 - `VITE_SERVER_URL`
 - `TURN_EXTERNAL_IP`
 - `TURN_REALM`, `TURN_SERVER_NAME`, `TURN_USER`, `TURN_PASSWORD`
+- `TURN_CERT_FILE`, `TURN_PKEY_FILE`
+
+Place TLS cert files in project root `certs/`:
+- `certs/fullchain.pem`
+- `certs/privkey.pem`
 
 ## 3) Start Deployment
 
@@ -48,10 +54,10 @@ docker compose logs -f nginx backend postgres turn
 ```
 
 Health check:
-- `http://YOUR_SERVER_IP/health`
+- `https://YOUR_SERVER_IP/health`
 
 App URL:
-- `http://YOUR_SERVER_IP`
+- `https://YOUR_SERVER_IP`
 
 ## 5) Common Operations
 

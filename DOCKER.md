@@ -20,20 +20,29 @@ Edit `.env` and set at minimum:
 - `TURN_EXTERNAL_IP` (public server IP)
 - `TURN_REALM`, `TURN_SERVER_NAME`, `TURN_USER`, `TURN_PASSWORD`
 
-## 2) Open firewall ports
+## 2) TLS certificates
 
-- `80/tcp` (Nginx / app)
+Create a `certs` folder in project root and place:
+- `certs/fullchain.pem`
+- `certs/privkey.pem`
+
+These files are mounted into both `nginx` and `turn`.
+
+## 3) Open firewall ports
+
+- `80/tcp` (HTTP redirect to HTTPS)
+- `443/tcp` (HTTPS app)
 - `3478/tcp` and `3478/udp` (TURN)
 - `5349/tcp` and `5349/udp` (TURNS)
 - TURN relay UDP range: `49152-65535/udp` (or your custom range from `.env`)
 
-## 3) Start services
+## 4) Start services
 
 ```bash
 docker compose up -d --build
 ```
 
-## 4) Verify
+## 5) Verify
 
 ```bash
 docker compose ps
@@ -41,7 +50,7 @@ docker compose logs -f nginx backend turn
 ```
 
 Health endpoint:
-- `http://YOUR_SERVER_IP_OR_DOMAIN/health`
+- `https://YOUR_SERVER_IP_OR_DOMAIN/health`
 
 ## Notes
 
