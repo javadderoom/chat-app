@@ -65,5 +65,5 @@ echo "[deploy] Current status"
 docker compose ps
 
 echo "[deploy] Deployment complete"
-echo "[deploy] App:    https://45.149.76.159"
-echo "[deploy] Health: https://45.149.76.159/health"
+echo "[deploy] App:    https://deroom.ir"
+echo "[deploy] Health: https://deroom.ir/health"

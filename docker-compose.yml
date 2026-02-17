@@ -96,8 +96,10 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
     depends_on:
       frontend:
         condition: service_healthy
@@ -118,10 +120,14 @@ services:
         condition: service_healthy
       db-init:
         condition: service_completed_successfully
+    volumes:
+      - ./certs:/certs:ro
     command:
       - -n
       - --listening-port=${TURN_PORT:-3478}
-      - --realm=${TURN_REALM:-45.149.76.159}
+      - --tls-listening-port=${TURN_TLS_PORT:-5349}
+      - --realm=${TURN_REALM:-deroom.ir}
+      - --server-name=${TURN_SERVER_NAME:-deroom.ir}
       - --lt-cred-mech
       - --user=${TURN_USER:-turnuser}:${TURN_PASSWORD:-turnpassword}
       - --listening-ip=0.0.0.0
@@ -129,8 +135,8 @@ services:
       - --min-port=${TURN_MIN_PORT:-49152}
       - --max-port=${TURN_MAX_PORT:-65535}
       - --no-cli
-      - --no-tls
-      - --no-dtls
+      - --cert=${TURN_CERT_FILE:-/certs/fullchain.pem}
+      - --pkey=${TURN_PKEY_FILE:-/certs/privkey.pem}
       - --log-file=stdout
 
 volumes:
