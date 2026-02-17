@@ -22,6 +22,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     const [status, setStatus] = useState<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
     const [socket, setSocket] = useState<Socket | null>(null);
     const socketRef = useRef<Socket | null>(null);
+    const joinedChatIdsRef = useRef<Set<string>>(new Set());
     const [users, setUsers] = useState<Record<string, UserInfo>>({});
     const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; displayName: string }>>([]);
     const [hasMoreMessages, setHasMoreMessages] = useState(true);
@@ -95,6 +96,16 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         );
         return firstUnread?.id || null;
     }, []);
+
+    const subscribeToChats = useCallback((chatIds: string[]) => {
+        if (!socket || !socket.connected || !Array.isArray(chatIds)) return;
+        for (const chatId of chatIds) {
+            if (!chatId) continue;
+            if (joinedChatIdsRef.current.has(chatId)) continue;
+            socket.emit('joinChat', { chatId, markSeen: false });
+            joinedChatIdsRef.current.add(chatId);
+        }
+    }, [socket]);
 
     const addMessage = useCallback((text: string, sender: string, isMe: boolean = false, isSystem: boolean = false, replyToId?: string, displayName?: string) => {
         const id = Math.random().toString(36).substring(7);
@@ -183,6 +194,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
             if (response.ok) {
                 const data: Chat[] = await response.json();
                 setChats(data);
+                subscribeToChats(data.map(chat => chat.id));
 
                 // Auto-select first chat (e.g. Global) if none selected
                 if (data.length > 0 && !activeChatIdRef.current) {
@@ -192,7 +204,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         } catch (error) {
             console.error('Error fetching chats:', error);
         }
-    }, [settings.serverUrl, token]);
+    }, [settings.serverUrl, token, subscribeToChats]);
 
     // Fetch all users for avatar caching
     const fetchUsers = useCallback(async () => {
@@ -266,10 +278,12 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         });
 
         setSocket(newSocket);
+        joinedChatIdsRef.current = new Set();
 
         return () => {
             newSocket.removeAllListeners();
             newSocket.disconnect();
+            joinedChatIdsRef.current = new Set();
         };
     }, [settings.serverUrl, settings.isDemoMode, settings.username, token, addMessage]);
 
@@ -320,7 +334,8 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         loadHistory();
 
         if (socket && socket.connected && activeChatId) {
-            socket.emit('joinChat', activeChatId);
+            socket.emit('joinChat', { chatId: activeChatId, markSeen: true });
+            joinedChatIdsRef.current.add(activeChatId);
         }
     }, [
         activeChatId,

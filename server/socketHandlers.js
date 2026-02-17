@@ -173,15 +173,11 @@ function createSocketHandlers(io, onlineUsers) {
     console.log(`User connected: ${username} (${socket.id})`);
     onlineUsers.set(userId, socket.id);
 
-    socket.on('joinChat', async (chatId) => {
-      if (chatId) {
-        const currentRooms = Array.from(socket.rooms);
-        for (const room of currentRooms) {
-          if (room !== socket.id) {
-            socket.leave(room);
-          }
-        }
+    socket.on('joinChat', async (payload) => {
+      const chatId = typeof payload === 'string' ? payload : payload?.chatId;
+      const shouldMarkSeen = typeof payload === 'object' ? payload?.markSeen !== false : true;
 
+      if (chatId) {
         const existingMember = await db
           .select()
           .from(chatMembers)
@@ -209,17 +205,19 @@ function createSocketHandlers(io, onlineUsers) {
 
         socket.join(chatId);
 
-        try {
-          const changedMessageIds = await markChatReceipts({
-            chatId,
-            userId,
-            markSeen: true
-          });
-          if (changedMessageIds.length > 0) {
-            await emitReceiptUpdates(chatId, changedMessageIds);
+        if (shouldMarkSeen) {
+          try {
+            const changedMessageIds = await markChatReceipts({
+              chatId,
+              userId,
+              markSeen: true
+            });
+            if (changedMessageIds.length > 0) {
+              await emitReceiptUpdates(chatId, changedMessageIds);
+            }
+          } catch (error) {
+            console.error('Error updating receipts on joinChat:', error);
           }
-        } catch (error) {
-          console.error('Error updating receipts on joinChat:', error);
         }
       }
     });

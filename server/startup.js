@@ -1,5 +1,5 @@
 const { db, pool } = require('./db/index');
-const { chats, users, chatMembers } = require('./db/schema');
+const { chats } = require('./db/schema');
 const { eq } = require('drizzle-orm');
 const fs = require('fs');
 const path = require('path');
@@ -85,6 +85,27 @@ async function runMigrations() {
         UNIQUE(message_id, user_id)
       )
     `).catch(() => {});
+    await pool.query(`
+      DELETE FROM message_receipts mr
+      USING (
+        SELECT ctid
+        FROM (
+          SELECT
+            ctid,
+            ROW_NUMBER() OVER (
+              PARTITION BY message_id, user_id
+              ORDER BY created_at DESC, id DESC
+            ) AS rn
+          FROM message_receipts
+        ) ranked
+        WHERE ranked.rn > 1
+      ) dup
+      WHERE mr.ctid = dup.ctid
+    `).catch(() => {});
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_message_receipts_message_user_unique
+      ON message_receipts(message_id, user_id)
+    `).catch(() => {});
 
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_chat_members_chat_id ON chat_members(chat_id)
@@ -137,15 +158,15 @@ async function ensureDefaultGlobalChat() {
         name: 'Global',
         description: 'The combined frequency of all transmissions.'
       }).returning();
-
-      const allUsers = await db.select().from(users);
-      for (const user of allUsers) {
-        await db.insert(chatMembers).values({
-          chatId: newChat.id,
-          userId: user.id,
-          role: 'admin'
-        }).catch(() => {});
-      }
+      await pool.query(
+        `
+        INSERT INTO chat_members (chat_id, user_id, role)
+        SELECT $1::uuid, u.id, 'admin'
+        FROM users u
+        ON CONFLICT (chat_id, user_id) DO NOTHING
+        `,
+        [newChat.id]
+      );
     }
   } catch (error) {
     console.warn('Could not create default chat. It might already exist or table not ready.', error.message);

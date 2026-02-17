@@ -146,6 +146,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const firstUnreadDividerRef = useRef<HTMLDivElement | null>(null);
     const messagesContainerRef = useRef<HTMLElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -290,7 +291,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
             }
             beginAutoScrollPhase();
             requestAnimationFrame(() => {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+                if (firstUnreadMessageId && firstUnreadDividerRef.current) {
+                    firstUnreadDividerRef.current.scrollIntoView({ behavior: 'auto', block: 'center' });
+                } else {
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+                }
             });
             shouldForceScrollToBottomRef.current = false;
         } else if (messages.length > prevMessagesLengthRef.current && !isPrependedHistory) {
@@ -298,7 +303,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }
         prevMessagesLengthRef.current = messages.length;
         prevFirstMessageIdRef.current = firstMessageId;
-    }, [messages]);
+    }, [messages, firstUnreadMessageId]);
 
     const handleMessagesScroll = async (e: React.UIEvent<HTMLElement>) => {
         const target = e.currentTarget;
@@ -764,7 +769,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     return (
                         <React.Fragment key={msg.id}>
                             {firstUnreadMessageId === msg.id && (
-                                <div className="new_messages_divider">
+                                <div className="new_messages_divider" ref={firstUnreadDividerRef}>
                                     <span>New messages</span>
                                 </div>
                             )}
