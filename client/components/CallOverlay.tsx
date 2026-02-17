@@ -72,8 +72,6 @@ export const CallOverlay: React.FC<CallOverlayProps> = ({
         }
     }, [localStream]);
 
-    if (callStatus === 'idle') return null;
-
     const showIncoming = callStatus === 'incoming' && incomingCall;
     const title = showIncoming
         ? `${incomingCall.callerDisplayName} is calling...`
@@ -92,6 +90,8 @@ export const CallOverlay: React.FC<CallOverlayProps> = ({
             setIsMinimized(false);
         }
     }, [callStatus]);
+
+    if (callStatus === 'idle') return null;
 
     if (isMinimized && !showIncoming) {
         return (
