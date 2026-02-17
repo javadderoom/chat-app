@@ -39,6 +39,7 @@ const App: React.FC = () => {
   const {
     messages, chats, activeChatId, setActiveChatId, status, fetchChats,
     sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, deleteChat, pinMessage, unpinMessage, startTyping, stopTyping, users, typingUsers,
+    unreadCounts, firstUnreadMessageId,
     hasMoreMessages, isLoadingOlderMessages, loadOlderMessages,
     callStatus, callMode, incomingCall, localStream, remoteStream, callPeerName, callError,
     startVoiceCall, startVideoCall, acceptCall, declineCall, endCall
@@ -84,6 +85,7 @@ return (
         onOpenSettings={() => setIsSettingsOpen(true)}
         user={user}
         onLogout={logout}
+        unreadCounts={unreadCounts}
       />
 
       <ChatView
@@ -114,6 +116,7 @@ return (
         token={token}
         users={users}
         typingUsers={typingUsers}
+        firstUnreadMessageId={firstUnreadMessageId}
         hasMoreMessages={hasMoreMessages}
         isLoadingOlderMessages={isLoadingOlderMessages}
         loadOlderMessages={loadOlderMessages}

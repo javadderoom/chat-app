@@ -632,6 +632,37 @@ footer {
     min-height: 16px;
 }
 
+.new_messages_divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 2px 0 4px;
+    position: relative;
+}
+
+.new_messages_divider::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    border-top: 1px solid rgba(56, 139, 253, 0.45);
+}
+
+.new_messages_divider span {
+    position: relative;
+    z-index: 1;
+    background: #0d1117;
+    border: 1px solid rgba(56, 139, 253, 0.55);
+    color: #58a6ff;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
 .scroll_to_bottom_btn {
     position: absolute;
     right: 16px;

@@ -12,6 +12,7 @@ interface UseSocketEventsProps {
     setStatus: Dispatch<SetStateAction<ConnectionStatus>>;
     setTypingUsers: Dispatch<SetStateAction<Array<{ userId: string; displayName: string }>>>;
     addMessage: (text: string, sender: string, isMe?: boolean, isSystem?: boolean, replyToId?: string, displayName?: string) => string;
+    onInactiveChatMessage?: (chatId: string) => void;
 }
 
 export const useSocketEvents = ({
@@ -23,7 +24,8 @@ export const useSocketEvents = ({
     setChats,
     setStatus,
     setTypingUsers,
-    addMessage
+    addMessage,
+    onInactiveChatMessage
 }: UseSocketEventsProps) => {
     useEffect(() => {
         if (!socket) return;
@@ -61,10 +63,24 @@ export const useSocketEvents = ({
             const currentUserName = (settingsRef.current.username || '').trim().toLowerCase();
             const isFromMe = senderName === currentUserName;
             const currentTime = Date.now();
+            const isDifferentChat = !!(data.chatId && activeChatIdRef.current && data.chatId !== activeChatIdRef.current);
 
-            // Client-side isolation check: ignore synchronization for other chats
-            if (data.chatId && activeChatIdRef.current && data.chatId !== activeChatIdRef.current) {
-                console.log('Ignored message for different chat:', data.chatId);
+            if (data.chatId) {
+                setChats(prevChats => {
+                    const chatIndex = prevChats.findIndex(c => c.id === data.chatId);
+                    if (chatIndex === -1) return prevChats;
+
+                    const updatedChats = [...prevChats];
+                    const [movedChat] = updatedChats.splice(chatIndex, 1);
+                    movedChat.lastMessageAt = data.createdAt ? new Date(data.createdAt).getTime() : currentTime;
+                    return [movedChat, ...updatedChats];
+                });
+            }
+
+            if (isDifferentChat) {
+                if (!isFromMe && data.chatId) {
+                    onInactiveChatMessage?.(data.chatId);
+                }
                 return;
             }
 
@@ -141,20 +157,6 @@ export const useSocketEvents = ({
                     seenCount: data.seenCount || 0,
                     seenBy: data.seenBy || []
                 };
-
-                // Update chat list order if necessary
-                if (data.chatId) {
-                    setChats(prevChats => {
-                        const chatIndex = prevChats.findIndex(c => c.id === data.chatId);
-                        if (chatIndex === -1) return prevChats;
-
-                        const updatedChats = [...prevChats];
-                        const [movedChat] = updatedChats.splice(chatIndex, 1);
-                        movedChat.lastMessageAt = newMessage.timestamp;
-                        return [movedChat, ...updatedChats];
-                    });
-                }
-
                 return [...prev, newMessage];
             });
 

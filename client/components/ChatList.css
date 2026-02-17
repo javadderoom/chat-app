@@ -78,6 +78,7 @@
     cursor: pointer;
     transition: all 0.2s;
     border: 1px solid transparent;
+    position: relative;
 }
 
 .chat_item:hover {
@@ -133,6 +134,22 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.chat_unread_badge {
+    margin-left: auto;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    padding: 0 6px;
+    background: #238636;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .sidebar_footer {

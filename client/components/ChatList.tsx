@@ -26,6 +26,7 @@ interface ChatListProps {
     onOpenSettings: () => void;
     user?: User;
     onLogout?: () => void;
+    unreadCounts?: Record<string, number>;
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
@@ -37,7 +38,8 @@ export const ChatList: React.FC<ChatListProps> = ({
     setShowSidebar,
     onOpenSettings,
     user,
-    onLogout
+    onLogout,
+    unreadCounts = {}
 }) => {
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatName, setNewChatName] = useState('');
@@ -92,6 +94,9 @@ export const ChatList: React.FC<ChatListProps> = ({
                                 <span className="chat_name">{chat.name}</span>
                                 {chat.description && <span className="chat_desc">{chat.description}</span>}
                             </div>
+                            {unreadCounts[chat.id] > 0 && activeChatId !== chat.id && (
+                                <div className="chat_unread_badge">{unreadCounts[chat.id]}</div>
+                            )}
                         </div>
                     ))}
                 </div>

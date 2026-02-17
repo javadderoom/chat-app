@@ -59,6 +59,7 @@ interface ChatViewProps {
     token: string | null;
     users: Record<string, UserInfo>;
     typingUsers: Array<{ userId: string; displayName: string }>;
+    firstUnreadMessageId: string | null;
     hasMoreMessages: boolean;
     isLoadingOlderMessages: boolean;
     loadOlderMessages: () => Promise<number>;
@@ -104,6 +105,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     token,
     users,
     typingUsers,
+    firstUnreadMessageId,
     hasMoreMessages,
     isLoadingOlderMessages,
     loadOlderMessages,
@@ -758,10 +760,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             </div>
                         );
                     }
-                    
+
                     return (
+                        <React.Fragment key={msg.id}>
+                            {firstUnreadMessageId === msg.id && (
+                                <div className="new_messages_divider">
+                                    <span>New messages</span>
+                                </div>
+                            )}
                         <MessageBubble
-                            key={msg.id}
                             msg={msg}
                             settings={settings}
                             messages={messages}
@@ -783,6 +790,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             truncateText={truncateText}
                             onProfileClick={setProfileUser}
                         />
+                        </React.Fragment>
                     );
                 })}
                 <div ref={messagesEndRef} />

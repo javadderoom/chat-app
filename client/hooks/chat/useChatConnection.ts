@@ -15,6 +15,7 @@ interface User {
 
 export const useChatConnection = (settings: UserSettings, token: string | null, user: User | null) => {
     const PAGE_SIZE = 50;
+    const READ_STATE_STORAGE_KEY = 'blackout_read_state_v1';
     const [messages, setMessages] = useState<Message[]>([]);
     const [chats, setChats] = useState<Chat[]>([]);
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -25,6 +26,20 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; displayName: string }>>([]);
     const [hasMoreMessages, setHasMoreMessages] = useState(true);
     const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
+    const [lastReadByChat, setLastReadByChat] = useState<Record<string, number>>(() => {
+        if (typeof window === 'undefined') return {};
+        try {
+            const saved = localStorage.getItem(READ_STATE_STORAGE_KEY);
+            if (!saved) return {};
+            const parsed = JSON.parse(saved);
+            if (!parsed || typeof parsed !== 'object') return {};
+            return parsed;
+        } catch {
+            return {};
+        }
+    });
+    const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+    const [firstUnreadMessageIdByChat, setFirstUnreadMessageIdByChat] = useState<Record<string, string | null>>({});
 
     const settingsRef = useRef(settings);
     useEffect(() => {
@@ -49,6 +64,37 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     useEffect(() => {
         tokenRef.current = token;
     }, [token]);
+
+    const lastReadByChatRef = useRef(lastReadByChat);
+    useEffect(() => {
+        lastReadByChatRef.current = lastReadByChat;
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(READ_STATE_STORAGE_KEY, JSON.stringify(lastReadByChat));
+        }
+    }, [lastReadByChat]);
+
+    const markChatAsRead = useCallback((chatId: string, readAt?: number) => {
+        if (!chatId) return;
+        const nextReadAt = typeof readAt === 'number' ? readAt : Date.now();
+
+        setLastReadByChat(prev => {
+            const current = prev[chatId] || 0;
+            if (nextReadAt <= current) return prev;
+            return { ...prev, [chatId]: nextReadAt };
+        });
+
+        setUnreadCounts(prev => {
+            if (!prev[chatId]) return prev;
+            return { ...prev, [chatId]: 0 };
+        });
+    }, []);
+
+    const getFirstUnreadMessageId = useCallback((chatMessages: Message[], readAt: number): string | null => {
+        const firstUnread = chatMessages.find(
+            (message) => !message.isSystem && !message.isMe && message.timestamp > readAt
+        );
+        return firstUnread?.id || null;
+    }, []);
 
     const addMessage = useCallback((text: string, sender: string, isMe: boolean = false, isSystem: boolean = false, replyToId?: string, displayName?: string) => {
         const id = Math.random().toString(36).substring(7);
@@ -102,7 +148,13 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         setChats,
         setStatus,
         setTypingUsers,
-        addMessage
+        addMessage,
+        onInactiveChatMessage: (chatId: string) => {
+            setUnreadCounts(prev => ({
+                ...prev,
+                [chatId]: (prev[chatId] || 0) + 1
+            }));
+        }
     });
 
     // Action methods
@@ -231,6 +283,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
             setMessages([]);
             setHasMoreMessages(true);
             setIsLoadingOlderMessages(false);
+            setUnreadCounts(prev => ({ ...prev, [activeChatId]: 0 }));
 
             try {
                 console.log(`Loading history for chat: ${activeChatId}`);
@@ -242,8 +295,19 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
                 if (response.ok) {
                     const dbMessages: DbMessage[] = await response.json();
                     const loadedMessages: Message[] = dbMessages.reverse().map(mapDbMessage);
+                    const previousReadAt = lastReadByChatRef.current[activeChatId] || 0;
+                    const firstUnreadMessageId = getFirstUnreadMessageId(loadedMessages, previousReadAt);
+                    const lastIncomingMessage = [...loadedMessages].reverse().find(
+                        (message) => !message.isSystem && !message.isMe
+                    );
+
                     setMessages(loadedMessages);
+                    setFirstUnreadMessageIdByChat(prev => ({
+                        ...prev,
+                        [activeChatId]: firstUnreadMessageId
+                    }));
                     setHasMoreMessages(dbMessages.length === PAGE_SIZE);
+                    markChatAsRead(activeChatId, lastIncomingMessage?.timestamp || Date.now());
                     if (socket && socket.connected) {
                         socket.emit('markChatSeen', activeChatId);
                     }
@@ -258,7 +322,26 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         if (socket && socket.connected && activeChatId) {
             socket.emit('joinChat', activeChatId);
         }
-    }, [activeChatId, status, socket, settings.serverUrl, settings.isDemoMode, token, mapDbMessage]);
+    }, [
+        activeChatId,
+        status,
+        socket,
+        settings.serverUrl,
+        settings.isDemoMode,
+        token,
+        mapDbMessage,
+        getFirstUnreadMessageId,
+        markChatAsRead
+    ]);
+
+    useEffect(() => {
+        if (!activeChatId || messages.length === 0) return;
+        const lastIncomingMessage = [...messages].reverse().find(
+            (message) => !message.isSystem && !message.isMe
+        );
+        if (!lastIncomingMessage) return;
+        markChatAsRead(activeChatId, lastIncomingMessage.timestamp);
+    }, [activeChatId, messages, markChatAsRead]);
 
     const loadOlderMessages = useCallback(async (): Promise<number> => {
         if (
@@ -333,6 +416,8 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         fetchChats,
         users,
         typingUsers,
+        unreadCounts,
+        firstUnreadMessageId: activeChatId ? (firstUnreadMessageIdByChat[activeChatId] || null) : null,
         hasMoreMessages,
         isLoadingOlderMessages,
         loadOlderMessages,
