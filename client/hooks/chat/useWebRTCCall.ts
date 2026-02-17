@@ -17,6 +17,12 @@ interface IncomingCall {
     mode: CallMode;
 }
 
+export interface RemoteParticipant {
+    userId: string;
+    displayName: string;
+    stream: MediaStream;
+}
+
 interface UseWebRTCCallOptions {
     socket: Socket | null;
     activeChatId: string | null;
@@ -52,152 +58,99 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
     const [callMode, setCallMode] = useState<CallMode>('audio');
     const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipant[]>([]);
     const [callPeerName, setCallPeerName] = useState<string>('');
     const [callError, setCallError] = useState<string | null>(null);
 
-    const peerRef = useRef<RTCPeerConnection | null>(null);
-    const targetUserIdRef = useRef<string | null>(null);
-    const localStreamRef = useRef<MediaStream | null>(null);
-    const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+    const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+    const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+    const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+    const participantNamesRef = useRef<Map<string, string>>(new Map());
     const currentChatIdRef = useRef<string | null>(activeChatId);
-    const disconnectTimeoutRef = useRef<number | null>(null);
+    const activeCallChatIdRef = useRef<string | null>(null);
+    const localStreamRef = useRef<MediaStream | null>(null);
 
     useEffect(() => {
         currentChatIdRef.current = activeChatId;
     }, [activeChatId]);
 
-    const cleanupCall = useCallback((keepIncoming = false, preserveError = false) => {
-        if (disconnectTimeoutRef.current) {
-            window.clearTimeout(disconnectTimeoutRef.current);
-            disconnectTimeoutRef.current = null;
+    const updateCallTitle = useCallback(() => {
+        const names = Array.from(participantNamesRef.current.values()).filter(Boolean);
+        if (names.length === 0) {
+            if (callStatus === 'calling') {
+                setCallPeerName('Waiting for participants...');
+            } else {
+                setCallPeerName('');
+            }
+            return;
         }
 
-        if (peerRef.current) {
-            peerRef.current.onicecandidate = null;
-            peerRef.current.ontrack = null;
-            peerRef.current.onconnectionstatechange = null;
-            peerRef.current.oniceconnectionstatechange = null;
-            peerRef.current.close();
-            peerRef.current = null;
+        if (names.length === 1) {
+            setCallPeerName(names[0]);
+            return;
         }
 
+        setCallPeerName(`${names[0]} +${names.length - 1}`);
+    }, [callStatus]);
+
+    const syncRemoteParticipants = useCallback(() => {
+        const list: RemoteParticipant[] = [];
+        for (const [userId, stream] of remoteStreamsRef.current.entries()) {
+            list.push({
+                userId,
+                displayName: participantNamesRef.current.get(userId) || 'Participant',
+                stream
+            });
+        }
+        setRemoteParticipants(list);
+    }, []);
+
+    const closePeer = useCallback((targetUserId: string) => {
+        const peer = peersRef.current.get(targetUserId);
+        if (peer) {
+            peer.onicecandidate = null;
+            peer.ontrack = null;
+            peer.onconnectionstatechange = null;
+            peer.oniceconnectionstatechange = null;
+            peer.close();
+        }
+        peersRef.current.delete(targetUserId);
+        pendingCandidatesRef.current.delete(targetUserId);
+        remoteStreamsRef.current.delete(targetUserId);
+        participantNamesRef.current.delete(targetUserId);
+        syncRemoteParticipants();
+    }, [syncRemoteParticipants]);
+
+    const stopLocalMediaOnly = useCallback(() => {
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => track.stop());
             localStreamRef.current = null;
         }
-
         setLocalStream(null);
-        setRemoteStream(null);
+    }, []);
+
+    const cleanupCall = useCallback((keepIncoming = false, preserveError = false) => {
+        for (const userId of Array.from(peersRef.current.keys())) {
+            closePeer(userId);
+        }
+
+        peersRef.current.clear();
+        pendingCandidatesRef.current.clear();
+        remoteStreamsRef.current.clear();
+        participantNamesRef.current.clear();
+
+        stopLocalMediaOnly();
+        setRemoteParticipants([]);
         setCallStatus('idle');
         setCallPeerName('');
         if (!preserveError) {
             setCallError(null);
         }
-        targetUserIdRef.current = null;
-        pendingCandidatesRef.current = [];
+        activeCallChatIdRef.current = null;
         if (!keepIncoming) {
             setIncomingCall(null);
         }
-    }, []);
-
-    const stopLocalMediaOnly = useCallback(() => {
-        if (disconnectTimeoutRef.current) {
-            window.clearTimeout(disconnectTimeoutRef.current);
-            disconnectTimeoutRef.current = null;
-        }
-
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => track.stop());
-            localStreamRef.current = null;
-        }
-        setLocalStream(null);
-        setRemoteStream(null);
-        targetUserIdRef.current = null;
-        pendingCandidatesRef.current = [];
-        if (peerRef.current) {
-            peerRef.current.onicecandidate = null;
-            peerRef.current.ontrack = null;
-            peerRef.current.onconnectionstatechange = null;
-            peerRef.current.oniceconnectionstatechange = null;
-            peerRef.current.close();
-            peerRef.current = null;
-        }
-    }, []);
-
-    const createPeerConnection = useCallback((chatId: string, targetUserId: string) => {
-        if (!socket) return null;
-
-        const peer = new RTCPeerConnection(buildRtcConfig());
-        peerRef.current = peer;
-        targetUserIdRef.current = targetUserId;
-
-        const incomingRemote = new MediaStream();
-        setRemoteStream(incomingRemote);
-
-        peer.onicecandidate = (event) => {
-            if (!event.candidate || !targetUserIdRef.current) return;
-            socket.emit('call:ice', {
-                chatId,
-                targetUserId: targetUserIdRef.current,
-                candidate: event.candidate.toJSON()
-            });
-        };
-
-        peer.ontrack = (event) => {
-            event.streams[0]?.getTracks().forEach(track => {
-                incomingRemote.addTrack(track);
-            });
-            setCallStatus('in-call');
-        };
-
-        peer.onconnectionstatechange = () => {
-            if (!peerRef.current) return;
-            const state = peerRef.current.connectionState;
-            if (state === 'failed' || state === 'closed') {
-                if (state === 'failed') {
-                    setCallError('Peer connection failed. Configure TURN for cross-network calls.');
-                }
-                cleanupCall(false, state === 'failed');
-            }
-        };
-
-        peer.oniceconnectionstatechange = () => {
-            if (!peerRef.current) return;
-            const state = peerRef.current.iceConnectionState;
-
-            if (state === 'disconnected') {
-                if (disconnectTimeoutRef.current) {
-                    window.clearTimeout(disconnectTimeoutRef.current);
-                }
-                disconnectTimeoutRef.current = window.setTimeout(() => {
-                    cleanupCall();
-                    disconnectTimeoutRef.current = null;
-                }, 8000);
-                return;
-            }
-
-            if (disconnectTimeoutRef.current && (state === 'connected' || state === 'completed')) {
-                window.clearTimeout(disconnectTimeoutRef.current);
-                disconnectTimeoutRef.current = null;
-            }
-
-            if (state === 'failed' || state === 'closed') {
-                if (state === 'failed') {
-                    setCallError('Network path failed. TURN relay is required for many mobile/carrier NATs.');
-                }
-                cleanupCall(false, state === 'failed');
-            }
-        };
-
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => {
-                peer.addTrack(track, localStreamRef.current as MediaStream);
-            });
-        }
-
-        return peer;
-    }, [cleanupCall, socket]);
+    }, [closePeer, stopLocalMediaOnly]);
 
     const ensureLocalStream = useCallback(async (mode: CallMode) => {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -207,6 +160,113 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         localStreamRef.current = stream;
         setLocalStream(stream);
     }, []);
+
+    const flushPendingCandidates = useCallback(async (targetUserId: string, peer: RTCPeerConnection) => {
+        const queue = pendingCandidatesRef.current.get(targetUserId) || [];
+        pendingCandidatesRef.current.set(targetUserId, []);
+
+        for (const candidate of queue) {
+            await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+    }, []);
+
+    const createPeerConnection = useCallback((chatId: string, targetUserId: string, targetDisplayName?: string) => {
+        if (!socket || !localStreamRef.current) return null;
+
+        const existing = peersRef.current.get(targetUserId);
+        if (existing) return existing;
+
+        const peer = new RTCPeerConnection(buildRtcConfig());
+        peersRef.current.set(targetUserId, peer);
+
+        if (targetDisplayName) {
+            participantNamesRef.current.set(targetUserId, targetDisplayName);
+            updateCallTitle();
+        }
+
+        const incomingRemote = new MediaStream();
+        remoteStreamsRef.current.set(targetUserId, incomingRemote);
+        syncRemoteParticipants();
+
+        peer.onicecandidate = (event) => {
+            if (!event.candidate) return;
+            socket.emit('call:ice', {
+                chatId,
+                targetUserId,
+                candidate: event.candidate.toJSON()
+            });
+        };
+
+        peer.ontrack = (event) => {
+            const remote = remoteStreamsRef.current.get(targetUserId);
+            if (!remote) return;
+
+            const incomingTracks =
+                event.streams && event.streams[0] && event.streams[0].getTracks().length > 0
+                    ? event.streams[0].getTracks()
+                    : [event.track];
+
+            incomingTracks.forEach(track => {
+                const exists = remote.getTracks().some(existingTrack => existingTrack.id === track.id);
+                if (!exists) {
+                    remote.addTrack(track);
+                }
+            });
+
+            syncRemoteParticipants();
+            setCallStatus('in-call');
+        };
+
+        peer.onconnectionstatechange = () => {
+            const state = peer.connectionState;
+
+            if (state === 'connected') {
+                setCallStatus('in-call');
+                return;
+            }
+
+            if (state === 'failed' || state === 'closed') {
+                closePeer(targetUserId);
+                if (state === 'failed') {
+                    setCallError('Peer connection failed. Check TURN server and network path.');
+                }
+
+                if (peersRef.current.size === 0 && callStatus !== 'incoming') {
+                    cleanupCall(false, state === 'failed');
+                }
+            }
+        };
+
+        peer.oniceconnectionstatechange = () => {
+            const state = peer.iceConnectionState;
+            if (state === 'failed' || state === 'closed') {
+                closePeer(targetUserId);
+                if (peersRef.current.size === 0 && callStatus !== 'incoming') {
+                    cleanupCall(false, state === 'failed');
+                }
+            }
+        };
+
+        localStreamRef.current.getTracks().forEach(track => {
+            peer.addTrack(track, localStreamRef.current as MediaStream);
+        });
+
+        return peer;
+    }, [callStatus, cleanupCall, closePeer, socket, syncRemoteParticipants, updateCallTitle]);
+
+    const createAndSendOffer = useCallback(async (chatId: string, targetUserId: string, targetDisplayName?: string) => {
+        const peer = createPeerConnection(chatId, targetUserId, targetDisplayName);
+        if (!peer || !socket) return;
+
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+
+        socket.emit('call:offer', {
+            chatId,
+            targetUserId,
+            offer
+        });
+    }, [createPeerConnection, socket]);
 
     const startCall = useCallback(async (mode: CallMode) => {
         if (!socket || !socket.connected) {
@@ -226,13 +286,14 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         try {
             setCallError(null);
             setCallMode(mode);
-            setCallPeerName('Waiting for answer...');
             await ensureLocalStream(mode);
+            activeCallChatIdRef.current = activeChatId;
             setCallStatus('calling');
+            setCallPeerName('Waiting for participants...');
             socket.emit('call:start', { chatId: activeChatId, isVideo: mode === 'video' });
-        } catch (error) {
+        } catch (_error) {
             setCallStatus('idle');
-            setCallError('Microphone/camera permission denied or unavailable. Use HTTPS (or localhost) and allow device access.');
+            setCallError('Microphone/camera permission denied or unavailable. Use HTTPS and allow device access.');
             stopLocalMediaOnly();
         }
     }, [activeChatId, callStatus, ensureLocalStream, socket, stopLocalMediaOnly, user]);
@@ -243,17 +304,17 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         try {
             setCallError(null);
             setCallMode(incomingCall.mode);
-            setCallPeerName(incomingCall.callerDisplayName);
             await ensureLocalStream(incomingCall.mode);
+            activeCallChatIdRef.current = incomingCall.chatId;
             setCallStatus('connecting');
-            targetUserIdRef.current = incomingCall.callerId;
+
             socket.emit('call:accept', {
                 chatId: incomingCall.chatId,
                 callerId: incomingCall.callerId,
                 isVideo: incomingCall.mode === 'video'
             });
             setIncomingCall(null);
-        } catch (error) {
+        } catch (_error) {
             setCallStatus('idle');
             setCallError('Could not access microphone/camera. Check browser permissions and HTTPS.');
             socket.emit('call:decline', {
@@ -272,19 +333,17 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
             callerId: incomingCall.callerId
         });
         setIncomingCall(null);
+        setCallStatus('idle');
     }, [incomingCall, socket]);
 
     const endCall = useCallback(() => {
-        if (!socket) {
-            cleanupCall();
-            return;
+        const chatId = activeCallChatIdRef.current || currentChatIdRef.current;
+        if (socket && chatId) {
+            socket.emit('call:end', {
+                chatId,
+                reason: 'left'
+            });
         }
-
-        socket.emit('call:end', {
-            chatId: currentChatIdRef.current,
-            targetUserId: targetUserIdRef.current,
-            reason: 'ended'
-        });
         cleanupCall();
     }, [cleanupCall, socket]);
 
@@ -293,70 +352,115 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
 
         const onIncomingCall = (data: any) => {
             if (!data?.chatId || !data?.callerId) return;
+
+            const mode: CallMode = data.isVideo ? 'video' : 'audio';
+            const sameCall = activeCallChatIdRef.current && activeCallChatIdRef.current === data.chatId && callStatus !== 'idle';
+            if (sameCall) {
+                // Already in this room call; acknowledge so caller can establish mesh peer.
+                socket.emit('call:accept', {
+                    chatId: data.chatId,
+                    callerId: data.callerId,
+                    isVideo: mode === 'video'
+                });
+                return;
+            }
+
             if (callStatus !== 'idle') {
                 socket.emit('call:decline', { chatId: data.chatId, callerId: data.callerId });
                 return;
             }
 
-            setCallMode(data.isVideo ? 'video' : 'audio');
+            setCallMode(mode);
             setIncomingCall({
                 chatId: data.chatId,
                 callerId: data.callerId,
                 callerDisplayName: data.callerDisplayName || data.callerUsername || 'Unknown',
-                mode: data.isVideo ? 'video' : 'audio'
+                mode
             });
             setCallStatus('incoming');
         };
 
         const onCallAccepted = async (data: any) => {
             if (!data?.chatId || !data?.calleeId) return;
-            if (!currentChatIdRef.current || data.chatId !== currentChatIdRef.current) return;
+            if (!localStreamRef.current) return;
+
+            activeCallChatIdRef.current = data.chatId;
+            setCallMode(data.isVideo ? 'video' : callMode);
+            setCallStatus('connecting');
+
+            participantNamesRef.current.set(
+                data.calleeId,
+                data.calleeDisplayName || data.calleeUsername || 'Participant'
+            );
+            updateCallTitle();
 
             try {
-                setCallPeerName(data.calleeDisplayName || data.calleeUsername || 'Connected user');
-                setCallStatus('connecting');
-                setCallMode(data.isVideo ? 'video' : callMode);
-
-                const peer = createPeerConnection(data.chatId, data.calleeId);
-                if (!peer) return;
-
-                const offer = await peer.createOffer();
-                await peer.setLocalDescription(offer);
-
-                socket.emit('call:offer', {
-                    chatId: data.chatId,
-                    targetUserId: data.calleeId,
-                    offer
-                });
-            } catch (error) {
-                setCallError('Failed to establish call.');
-                cleanupCall();
+                await createAndSendOffer(
+                    data.chatId,
+                    data.calleeId,
+                    data.calleeDisplayName || data.calleeUsername || 'Participant'
+                );
+            } catch (_error) {
+                setCallError('Failed to establish call with participant.');
             }
         };
 
-        const onCallDeclined = () => {
-            setCallError('Call was declined.');
-            cleanupCall();
+        const onParticipantJoined = async (data: any) => {
+            if (!data?.chatId || !data?.joinedById) return;
+            if (user?.id && data.joinedById === user.id) return;
+            if (!localStreamRef.current) return;
+
+            const activeChat = activeCallChatIdRef.current;
+            if (!activeChat || activeChat !== data.chatId) return;
+            if (peersRef.current.has(data.joinedById)) return;
+
+            participantNamesRef.current.set(
+                data.joinedById,
+                data.joinedByDisplayName || data.joinedByUsername || 'Participant'
+            );
+            updateCallTitle();
+
+            try {
+                await createAndSendOffer(
+                    data.chatId,
+                    data.joinedById,
+                    data.joinedByDisplayName || data.joinedByUsername || 'Participant'
+                );
+            } catch (_error) {
+                setCallError('Failed to connect a new participant.');
+            }
+        };
+
+        const onCallDeclined = (data: any) => {
+            const declinedName = data?.declinedByDisplayName || data?.declinedByUsername || 'Participant';
+            if (callStatus === 'calling' && peersRef.current.size === 0) {
+                setCallError(`${declinedName} declined the call.`);
+            }
         };
 
         const onCallOffer = async (data: any) => {
             if (!data?.chatId || !data?.fromUserId || !data?.offer) return;
             if (!localStreamRef.current) return;
 
-            try {
-                setCallStatus('connecting');
-                setCallPeerName(data.fromDisplayName || data.fromUsername || 'Connected user');
+            activeCallChatIdRef.current = data.chatId;
+            setCallStatus('connecting');
 
-                const peer = createPeerConnection(data.chatId, data.fromUserId);
+            participantNamesRef.current.set(
+                data.fromUserId,
+                data.fromDisplayName || data.fromUsername || 'Participant'
+            );
+            updateCallTitle();
+
+            try {
+                const peer = createPeerConnection(
+                    data.chatId,
+                    data.fromUserId,
+                    data.fromDisplayName || data.fromUsername || 'Participant'
+                );
                 if (!peer) return;
 
                 await peer.setRemoteDescription(new RTCSessionDescription(data.offer));
-
-                while (pendingCandidatesRef.current.length > 0) {
-                    const candidate = pendingCandidatesRef.current.shift();
-                    if (!candidate) continue;
-                    await peer.addIceCandidate(new RTCIceCandidate(candidate));
-                }
+                await flushPendingCandidates(data.fromUserId, peer);
 
                 const answer = await peer.createAnswer();
                 await peer.setLocalDescription(answer);
@@ -366,48 +470,64 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
                     targetUserId: data.fromUserId,
                     answer
                 });
-            } catch (error) {
+            } catch (_error) {
                 setCallError('Failed to accept call offer.');
-                cleanupCall();
+                closePeer(data.fromUserId);
             }
         };
 
         const onCallAnswer = async (data: any) => {
-            if (!data?.answer || !peerRef.current) return;
-            try {
-                await peerRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+            if (!data?.fromUserId || !data?.answer) return;
 
-                while (pendingCandidatesRef.current.length > 0) {
-                    const candidate = pendingCandidatesRef.current.shift();
-                    if (!candidate) continue;
-                    await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-                }
-            } catch (error) {
+            const peer = peersRef.current.get(data.fromUserId);
+            if (!peer) return;
+
+            try {
+                await peer.setRemoteDescription(new RTCSessionDescription(data.answer));
+                await flushPendingCandidates(data.fromUserId, peer);
+            } catch (_error) {
                 setCallError('Failed to process call answer.');
-                cleanupCall();
+                closePeer(data.fromUserId);
             }
         };
 
         const onCallIce = async (data: any) => {
-            if (!data?.candidate) return;
+            if (!data?.fromUserId || !data?.candidate) return;
+
+            const peer = peersRef.current.get(data.fromUserId);
+            if (!peer || !peer.remoteDescription) {
+                const queue = pendingCandidatesRef.current.get(data.fromUserId) || [];
+                queue.push(data.candidate);
+                pendingCandidatesRef.current.set(data.fromUserId, queue);
+                return;
+            }
 
             try {
-                if (!peerRef.current || !peerRef.current.remoteDescription) {
-                    pendingCandidatesRef.current.push(data.candidate);
-                    return;
-                }
-                await peerRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+                await peer.addIceCandidate(new RTCIceCandidate(data.candidate));
             } catch (error) {
                 console.error('Failed to add ICE candidate:', error);
             }
         };
 
-        const onCallEnded = () => {
+        const onCallEnded = (data: any) => {
+            const endedById = data?.endedById;
+
+            if (endedById && peersRef.current.has(endedById)) {
+                closePeer(endedById);
+                updateCallTitle();
+
+                if (peersRef.current.size === 0 && callStatus !== 'calling') {
+                    cleanupCall();
+                }
+                return;
+            }
+
             cleanupCall();
         };
 
         socket.on('call:incoming', onIncomingCall);
         socket.on('call:accepted', onCallAccepted);
+        socket.on('call:participant-joined', onParticipantJoined);
         socket.on('call:declined', onCallDeclined);
         socket.on('call:offer', onCallOffer);
         socket.on('call:answer', onCallAnswer);
@@ -417,13 +537,25 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         return () => {
             socket.off('call:incoming', onIncomingCall);
             socket.off('call:accepted', onCallAccepted);
+            socket.off('call:participant-joined', onParticipantJoined);
             socket.off('call:declined', onCallDeclined);
             socket.off('call:offer', onCallOffer);
             socket.off('call:answer', onCallAnswer);
             socket.off('call:ice', onCallIce);
             socket.off('call:ended', onCallEnded);
         };
-    }, [callMode, callStatus, cleanupCall, createPeerConnection, socket]);
+    }, [
+        callMode,
+        callStatus,
+        cleanupCall,
+        closePeer,
+        createAndSendOffer,
+        createPeerConnection,
+        flushPendingCandidates,
+        socket,
+        updateCallTitle,
+        user?.id
+    ]);
 
     useEffect(() => {
         return () => {
@@ -436,7 +568,8 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         callMode,
         incomingCall,
         localStream,
-        remoteStream,
+        remoteParticipants,
+        remoteStream: remoteParticipants[0]?.stream || null,
         callPeerName,
         callError,
         startVoiceCall: () => startCall('audio'),

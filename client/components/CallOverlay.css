@@ -22,6 +22,9 @@
 .call_header {
     padding: 14px 16px;
     border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .call_header h3 {
@@ -34,6 +37,23 @@
     margin: 4px 0 0;
     color: #94a3b8;
     font-size: 12px;
+}
+
+.call_header_btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: rgba(30, 41, 59, 0.7);
+    color: #cbd5e1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.call_header_btn:hover {
+    background: rgba(51, 65, 85, 0.9);
 }
 
 .call_error {
@@ -50,14 +70,52 @@
     position: relative;
     min-height: 220px;
     background: #020617;
+    padding: 10px;
+}
+
+.call_remote_grid {
+    display: grid;
+    gap: 10px;
+    min-height: 220px;
+}
+
+.call_remote_grid.one {
+    grid-template-columns: 1fr;
+}
+
+.call_remote_grid.two {
+    grid-template-columns: 1fr 1fr;
+}
+
+.call_remote_grid.many {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.call_remote_tile {
+    position: relative;
+    min-height: 160px;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
 }
 
 .call_video_remote {
     width: 100%;
-    min-height: 220px;
-    max-height: 420px;
+    height: 100%;
+    min-height: 160px;
     object-fit: cover;
     background: #000;
+}
+
+.call_remote_name {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    color: #e2e8f0;
+    background: rgba(15, 23, 42, 0.8);
 }
 
 .call_video_local {
@@ -73,13 +131,17 @@
 }
 
 .call_audio_only {
-    min-height: 220px;
+    min-height: 160px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 10px;
     color: #cbd5e1;
+}
+
+.call_audio_only.waiting {
+    min-height: 220px;
 }
 
 .call_actions {
@@ -113,6 +175,52 @@
 
 .call_btn.end {
     background: #dc2626;
+}
+
+.call_minimized_chip {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 1450;
+    background: rgba(15, 23, 42, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px 6px 10px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.call_minimized_expand {
+    border: none;
+    background: transparent;
+    color: #e2e8f0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.call_minimized_expand span {
+    max-width: 160px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.call_minimized_end {
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
 }
 
 @media (max-width: 640px) {

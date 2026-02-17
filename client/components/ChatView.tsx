@@ -12,6 +12,7 @@ import { ForwardModal } from './ForwardModal';
 import { ChatSettingsModal } from './ChatSettingsModal';
 import { ProfileModal } from './ProfileModal';
 import { CallOverlay } from './CallOverlay';
+import { RemoteParticipant } from '../hooks/chat/useWebRTCCall';
 
 interface Chat {
     id: string;
@@ -67,7 +68,7 @@ interface ChatViewProps {
     callMode: 'audio' | 'video';
     incomingCall: { callerDisplayName: string; mode: 'audio' | 'video' } | null;
     localStream: MediaStream | null;
-    remoteStream: MediaStream | null;
+    remoteParticipants: RemoteParticipant[];
     callPeerName: string;
     callError: string | null;
     startVoiceCall: () => void;
@@ -113,7 +114,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     callMode,
     incomingCall,
     localStream,
-    remoteStream,
+    remoteParticipants,
     callPeerName,
     callError,
     startVoiceCall,
@@ -1032,7 +1033,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 callMode={callMode}
                 incomingCall={incomingCall}
                 localStream={localStream}
-                remoteStream={remoteStream}
+                remoteParticipants={remoteParticipants}
                 callPeerName={callPeerName}
                 callError={callError}
                 acceptCall={acceptCall}

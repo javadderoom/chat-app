@@ -30,6 +30,15 @@ function registerCallSignalingHandlers({ socket, io, onlineUsers, userId, userna
       calleeDisplayName: displayName,
       isVideo: !!isVideo
     });
+
+    // Notify existing participants so they can establish mesh links with the new joiner.
+    socket.to(chatId).emit('call:participant-joined', {
+      chatId,
+      joinedById: userId,
+      joinedByUsername: username,
+      joinedByDisplayName: displayName,
+      isVideo: !!isVideo
+    });
   });
 
   socket.on('call:decline', (data = {}) => {

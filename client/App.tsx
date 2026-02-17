@@ -41,7 +41,7 @@ const App: React.FC = () => {
     sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, deleteChat, pinMessage, unpinMessage, startTyping, stopTyping, users, typingUsers,
     unreadCounts, firstUnreadMessageId,
     hasMoreMessages, isLoadingOlderMessages, loadOlderMessages,
-    callStatus, callMode, incomingCall, localStream, remoteStream, callPeerName, callError,
+    callStatus, callMode, incomingCall, localStream, remoteParticipants, callPeerName, callError,
     startVoiceCall, startVideoCall, acceptCall, declineCall, endCall
   } = useChatConnection(settings, token, user);
 
@@ -124,7 +124,7 @@ return (
         callMode={callMode}
         incomingCall={incomingCall}
         localStream={localStream}
-        remoteStream={remoteStream}
+        remoteParticipants={remoteParticipants}
         callPeerName={callPeerName}
         callError={callError}
         startVoiceCall={startVoiceCall}
