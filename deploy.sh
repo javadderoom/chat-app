@@ -1,93 +1,69 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Chat App Deployment Script for Linux
-# Run this with: ./deploy.sh
+set -euo pipefail
 
-set -e
+echo "[deploy] Starting deployment"
 
-echo "🚀 Starting Chat App deployment..."
+if ! command -v docker >/dev/null 2>&1; then
+  echo "[deploy] Docker is not installed"
+  exit 1
+fi
 
-# Function to check if a service is healthy/running
-check_service() {
-    local service=$1
-    local max_attempts=30
-    local attempt=1
+if [ ! -f .env ]; then
+  echo "[deploy] Missing .env file. Create it first (cp .env.example .env)."
+  exit 1
+fi
 
-    echo "⏳ Waiting for $service to be ready..."
+echo "[deploy] Pulling latest base images"
+docker compose pull || true
 
-    while [ $attempt -le $max_attempts ]; do
-        # Checks if container is strictly "healthy" (if healthcheck exists) or just "running"
-        if docker-compose ps $service | grep -q "healthy\|running"; then
-            echo "✅ $service is ready!"
-            return 0
-        fi
+wait_for_service() {
+  local service="$1"
+  local timeout_seconds="${2:-180}"
+  local elapsed=0
 
-        echo "   Attempt $attempt/$max_attempts: $service not ready yet..."
-        sleep 5
-        attempt=$((attempt + 1))
-    done
+  while [ "$elapsed" -lt "$timeout_seconds" ]; do
+    local cid
+    cid="$(docker compose ps -q "$service")"
+    if [ -n "$cid" ]; then
+      local state
+      state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid" 2>/dev/null || true)"
+      if [ "$state" = "healthy" ] || [ "$state" = "running" ]; then
+        echo "[deploy] $service is $state"
+        return 0
+      fi
+      echo "[deploy] waiting for $service (state: ${state:-unknown})"
+    else
+      echo "[deploy] waiting for $service container to be created"
+    fi
+    sleep 3
+    elapsed=$((elapsed + 3))
+  done
 
-    echo "❌ $service failed to start properly"
-    return 1
+  echo "[deploy] timeout waiting for $service"
+  docker compose logs "$service" || true
+  return 1
 }
 
-# 1. Stop existing containers
-echo "🛑 Stopping existing containers..."
-docker-compose down
+echo "[deploy] Starting postgres first"
+docker compose up -d postgres
+wait_for_service postgres 240
 
-# 2. Start PostgreSQL
-echo "🐘 Starting PostgreSQL..."
-docker-compose up -d postgres
+echo "[deploy] Running database schema push (npm run db:push)"
+docker compose run --rm db-init
 
-if ! check_service postgres; then
-    echo "❌ PostgreSQL failed to start. Check logs:"
-    docker-compose logs postgres
-    exit 1
-fi
+echo "[deploy] Starting remaining services"
+docker compose up -d --build backend frontend nginx turn
 
-# 3. Run Database Migrations (Using the backend container)
-echo "🗄️  Running Database Migrations..."
-# This spins up a temporary backend instance just to run the push command
-if docker-compose run --rm backend npx drizzle-kit push; then
-    echo "✅ Database schema updated successfully"
-else
-    echo "❌ Migration failed. Checking logs..."
-    exit 1
-fi
+echo "[deploy] Waiting for health checks"
+wait_for_service backend 240
+wait_for_service frontend 240
+wait_for_service nginx 120
+wait_for_service turn 120
 
-# 4. Start Backend
-echo "⚙️  Starting Backend service..."
-docker-compose up -d backend
+echo "[deploy] Current status"
+docker compose ps
 
-if ! check_service backend; then
-    echo "❌ Backend failed to start. Check logs:"
-    docker-compose logs backend
-    exit 1
-fi
-
-# 5. Start Frontend
-echo "🌐 Starting Frontend service..."
-docker-compose up -d frontend
-
-# 6. Start Nginx (The Gateway)
-echo "🚦 Starting Nginx Reverse Proxy..."
-docker-compose up -d nginx
-
-if ! check_service nginx; then
-    echo "❌ Nginx failed to start. Check logs:"
-    docker-compose logs nginx
-    exit 1
-fi
-
-echo ""
-echo "🎉 Chat App deployment completed successfully!"
-echo ""
-echo "-----------------------------------------------------"
-echo "🟢 App is Live at: http://$(curl -s ifconfig.me) (or http://localhost)"
-echo "-----------------------------------------------------"
-echo "🔒 Security Status:"
-echo "   • Backend (Port 3000): HIDDEN (Accessible via Nginx only)"
-echo "   • Database (Port 5432): HIDDEN (Internal Docker Network only)"
-echo "-----------------------------------------------------"
-echo "To view logs: docker-compose logs -f [service-name]"
-echo "To stop: docker-compose down"
+echo "[deploy] Deployment complete"
+echo "[deploy] App:    http://45.149.76.159"
+echo "[deploy] Health: http://45.149.76.159/health"

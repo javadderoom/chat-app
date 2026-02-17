@@ -10,7 +10,9 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
-const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+const serverUrl =
+  import.meta.env.VITE_SERVER_URL ||
+  (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin);
 
 root.render(
   <React.StrictMode>

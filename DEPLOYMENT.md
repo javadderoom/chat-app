@@ -1,159 +1,110 @@
-# Chat App Deployment Guide
+# Chat App Deployment Guide (Ubuntu + Docker)
 
-This guide explains how to properly deploy the chat application to avoid the database connection issues you were experiencing.
+This project is deployed with a single `docker compose` stack containing:
+- PostgreSQL (`postgres`)
+- Backend API (`backend`)
+- Frontend static build (`frontend`)
+- Nginx reverse proxy (`nginx`)
+- Coturn TURN server (`turn`)
 
-## Problem Summary
+## 1) Prerequisites
 
-The original setup had several issues that caused intermittent database connection failures:
+- Ubuntu server with Docker + Docker Compose plugin installed
+- Public server IP (you have: `45.149.76.159`)
+- Open firewall/security group ports:
+  - `80/tcp`
+  - `3478/tcp`, `3478/udp`
+  - `5349/tcp`, `5349/udp`
+  - `49152-65535/udp`
 
-1. **Database schema not initialized**: The database tables weren't created automatically
-2. **Poor connection handling**: No retry logic or proper connection pooling
-3. **Timing issues**: Services started before database was fully ready
-4. **No health checks**: Containers didn't verify they were working properly
+## 2) Environment File
 
-## Solution Overview
-
-The updated setup includes:
-
-- Automatic database schema initialization
-- Improved connection pooling and retry logic
-- Proper health checks and startup ordering
-- Better error handling and logging
-- Automated deployment script
-
-## Quick Start
-
-### Option 1: Automated Deployment (Recommended)
-
-Run the automated deployment script:
-
-```powershell
-.\deploy.ps1
-```
-
-This script will:
-1. Stop any existing containers
-2. Start PostgreSQL and wait for it to be healthy
-3. Initialize the database schema
-4. Start the backend and wait for it to be healthy
-5. Start the frontend
-
-### Option 2: Manual Deployment
-
-If you prefer to deploy manually:
+Create `.env` from template:
 
 ```bash
-# Start all services (PostgreSQL will be initialized automatically)
-docker-compose up -d
-
-# Or initialize database first, then start services
-docker-compose --profile init run --rm db-init
-docker-compose up -d
+cp .env.example .env
 ```
 
-## Key Improvements
+Required values in `.env`:
+- `POSTGRES_PASSWORD`
+- `JWT_SECRET`
+- `VITE_SERVER_URL`
+- `TURN_EXTERNAL_IP`
+- `TURN_REALM`, `TURN_SERVER_NAME`, `TURN_USER`, `TURN_PASSWORD`
 
-### 1. Database Initialization
-- Added a `db-init` service that runs `npm run db:push` to create tables
-- Database schema is guaranteed to exist before the backend starts
-- Uses Docker profiles to run initialization separately
-
-### 2. Connection Handling
-- Improved connection pool settings (max 20 connections, better timeouts)
-- Automatic retry logic on connection failures
-- Graceful handling of temporary connection drops
-- Environment variable validation
-
-### 3. Health Checks
-- PostgreSQL health check verifies database is ready
-- Backend health check tests the API endpoint
-- Services wait for dependencies to be healthy before starting
-
-### 4. Error Handling
-- Better logging for connection issues
-- Automatic reconnection attempts
-- Proper error responses for API calls
-
-## Troubleshooting
-
-### Still getting database errors?
-
-1. **Check container status:**
-   ```bash
-   docker-compose ps
-   ```
-
-2. **View logs:**
-   ```bash
-   docker-compose logs postgres
-   docker-compose logs backend
-   ```
-
-3. **Reset everything:**
-   ```bash
-   docker-compose down -v  # Remove volumes too
-   .\deploy.ps1
-   ```
-
-### Common Issues
-
-**"Database connection failed"**
-- Wait for the deployment script to complete
-- Check that PostgreSQL container is healthy: `docker-compose ps postgres`
-
-**"Tables don't exist"**
-- Run the initialization: `docker-compose --profile init run --rm db-init`
-
-**"Port already in use"**
-- Stop other services using ports 80, 3000, 5432
-- Or modify ports in `docker-compose.yml`
-
-## Environment Variables
-
-The application uses these environment variables (with defaults):
-
-- `DB_HOST`: Database host (default: postgres)
-- `DB_PORT`: Database port (default: 5432)
-- `DB_USER`: Database user (default: postgres)
-- `DB_PASSWORD`: Database password (default: postgres)
-- `DB_NAME`: Database name (default: chat_app)
-
-## Monitoring
-
-After deployment, monitor your services:
+## 3) Start Deployment
 
 ```bash
-# View all logs
-docker-compose logs -f
-
-# Check specific service
-docker-compose logs -f backend
-
-# Check resource usage
-docker stats
+docker compose up -d --build
 ```
 
-## Production Considerations
+`db-init` runs `npm run db:push` and must complete successfully before `backend`, `frontend`, `nginx`, and `turn` can start.
 
-For production deployment:
+## 4) Verify
 
-1. **Change default passwords** in `docker-compose.yml`
-2. **Use environment files** instead of hardcoded values
-3. **Add SSL/TLS** for database connections
-4. **Configure proper logging** and monitoring
-5. **Set up backups** for the PostgreSQL volume
-6. **Use a reverse proxy** (nginx) for the frontend
+```bash
+docker compose ps
+docker compose logs -f nginx backend postgres turn
+```
 
-## File Changes Made
+Health check:
+- `http://YOUR_SERVER_IP/health`
 
-The following files were modified to fix the issues:
+App URL:
+- `http://YOUR_SERVER_IP`
 
-- `docker-compose.yml`: Added initialization service and health checks
-- `server/Dockerfile`: Added startup script and curl for health checks
-- `server/db/index.js`: Improved connection pooling and error handling
-- `server/server.js`: Added retry logic and better error handling
-- `server/init.sql`: Additional database initialization
-- `deploy.ps1`: Automated deployment script
-- `DEPLOYMENT.md`: This documentation
+## 5) Common Operations
 
-The core application logic remains unchanged - only the deployment and connection handling were improved.
+Restart everything:
+
+```bash
+docker compose restart
+```
+
+Rebuild after code changes:
+
+```bash
+docker compose up -d --build
+```
+
+Stop stack:
+
+```bash
+docker compose down
+```
+
+Stop and remove volumes (destructive):
+
+```bash
+docker compose down -v
+```
+
+## 6) Troubleshooting
+
+Backend cannot connect to DB:
+
+```bash
+docker compose logs -f postgres backend
+```
+
+Schema/tables not created:
+
+```bash
+docker compose logs -f db-init
+docker compose run --rm db-init
+```
+
+Nginx is up but app is blank:
+- Recheck `VITE_SERVER_URL` in `.env`
+- Rebuild frontend image: `docker compose up -d --build frontend nginx`
+
+Calls do not connect across networks:
+- Recheck TURN values in `.env`
+- Confirm UDP ports and relay range are open
+- Inspect TURN logs: `docker compose logs -f turn`
+
+## 7) Notes
+
+- `turn` service uses `network_mode: host`, intended for Linux hosts like Ubuntu.
+- Uploaded media is persisted in `uploads_data` volume.
+- Database is persisted in `postgres_data` volume.
