@@ -91,7 +91,7 @@ services:
       retries: 10
 
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:alpine
     container_name: chat-nginx
     restart: unless-stopped
     ports:
@@ -121,19 +121,16 @@ services:
     command:
       - -n
       - --listening-port=${TURN_PORT:-3478}
-      - --tls-listening-port=${TURN_TLS_PORT:-5349}
-      - --realm=${TURN_REALM:-localhost}
-      - --server-name=${TURN_SERVER_NAME:-localhost}
+      - --realm=${TURN_REALM:-45.149.76.159}
       - --lt-cred-mech
       - --user=${TURN_USER:-turnuser}:${TURN_PASSWORD:-turnpassword}
       - --listening-ip=0.0.0.0
-      - --external-ip=${TURN_EXTERNAL_IP:-127.0.0.1}
+      - --external-ip=${TURN_EXTERNAL_IP:-45.149.76.159}
       - --min-port=${TURN_MIN_PORT:-49152}
       - --max-port=${TURN_MAX_PORT:-65535}
-      - --fingerprint
       - --no-cli
-      - --no-multicast-peers
-      - --no-loopback-peers
+      - --no-tls
+      - --no-dtls
       - --log-file=stdout
 
 volumes:
