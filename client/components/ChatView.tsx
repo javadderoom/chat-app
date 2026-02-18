@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, MessageSquare, Pin, Search, Menu, ArrowDown, Phone, Bell, BellOff } from 'lucide-react';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { StickerPicker } from './StickerPicker';
@@ -155,6 +155,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const [isSearching, setIsSearching] = useState(false);
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState('');
+    const [mentionStart, setMentionStart] = useState<number | null>(null);
+    const [mentionSelectionIndex, setMentionSelectionIndex] = useState(0);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const firstUnreadDividerRef = useRef<HTMLDivElement | null>(null);
@@ -185,6 +188,65 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const truncateText = (text: string, length: number = 20) => {
         if (!text) return '';
         return text.length > length ? text.substring(0, length) + '...' : text;
+    };
+
+    const mentionCandidates = useMemo(() => {
+        const normalizedQuery = mentionQuery.trim().toLowerCase();
+        const list = Object.entries(users).map(([username, data]) => ({
+            username,
+            displayName: data.displayName,
+            avatarUrl: data.avatarUrl
+        }));
+
+        const filtered = !normalizedQuery
+            ? list
+            : list.filter(candidate =>
+                candidate.username.toLowerCase().includes(normalizedQuery) ||
+                candidate.displayName.toLowerCase().includes(normalizedQuery)
+            );
+
+        return filtered
+            .sort((a, b) => a.username.localeCompare(b.username))
+            .slice(0, 7);
+    }, [mentionQuery, users]);
+
+    const isMentionMenuOpen = mentionStart !== null && mentionCandidates.length > 0;
+
+    const resetMentionState = () => {
+        setMentionQuery('');
+        setMentionStart(null);
+        setMentionSelectionIndex(0);
+    };
+
+    const updateMentionStateFromInput = (value: string, cursorPos: number) => {
+        const textBeforeCursor = value.slice(0, cursorPos);
+        const mentionMatch = textBeforeCursor.match(/(^|\s)@([A-Za-z0-9_]*)$/);
+        if (!mentionMatch) {
+            resetMentionState();
+            return;
+        }
+        const query = mentionMatch[2] || '';
+        const atIndex = cursorPos - query.length - 1;
+        setMentionQuery(query);
+        setMentionStart(atIndex);
+        setMentionSelectionIndex(0);
+    };
+
+    const insertMention = (username: string) => {
+        if (mentionStart === null || !inputRef.current) return;
+        const cursorPos = inputRef.current.selectionStart ?? input.length;
+        const textBeforeMention = input.slice(0, mentionStart);
+        const textAfterCursor = input.slice(cursorPos);
+        const inserted = `@${username} `;
+        const nextValue = `${textBeforeMention}${inserted}${textAfterCursor}`;
+        const nextCursor = textBeforeMention.length + inserted.length;
+        setInput(nextValue);
+        resetMentionState();
+        requestAnimationFrame(() => {
+            if (!inputRef.current) return;
+            inputRef.current.focus();
+            inputRef.current.setSelectionRange(nextCursor, nextCursor);
+        });
     };
 
     useEffect(() => {
@@ -955,13 +1017,49 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                     <textarea
                                         ref={inputRef}
                                         value={input}
-                                        onChange={(e) => setInput(e.target.value)}
-                                        onBlur={() => stopTyping()}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            setInput(value);
+                                            const cursorPos = e.target.selectionStart ?? value.length;
+                                            updateMentionStateFromInput(value, cursorPos);
+                                        }}
+                                        onBlur={() => {
+                                            stopTyping();
+                                            window.setTimeout(() => resetMentionState(), 120);
+                                        }}
+                                        onClick={(e) => {
+                                            const target = e.target as HTMLTextAreaElement;
+                                            const cursorPos = target.selectionStart ?? target.value.length;
+                                            updateMentionStateFromInput(target.value, cursorPos);
+                                        }}
                                         placeholder={editingMessageId ? "Edit your message..." : replyingToMessage ? "Write a reply..." : (status === ConnectionStatus.CONNECTED || settings.isDemoMode ? "Message" : "Connecting...")}
                                         disabled={status !== ConnectionStatus.CONNECTED && !settings.isDemoMode}
                                         className="message_input"
                                         rows={1}
                                         onKeyDown={(e) => {
+                                            if (isMentionMenuOpen) {
+                                                if (e.key === 'ArrowDown') {
+                                                    e.preventDefault();
+                                                    setMentionSelectionIndex(prev => (prev + 1) % mentionCandidates.length);
+                                                    return;
+                                                }
+                                                if (e.key === 'ArrowUp') {
+                                                    e.preventDefault();
+                                                    setMentionSelectionIndex(prev => (prev - 1 + mentionCandidates.length) % mentionCandidates.length);
+                                                    return;
+                                                }
+                                                if (e.key === 'Enter' || e.key === 'Tab') {
+                                                    e.preventDefault();
+                                                    const selected = mentionCandidates[mentionSelectionIndex];
+                                                    if (selected) insertMention(selected.username);
+                                                    return;
+                                                }
+                                                if (e.key === 'Escape') {
+                                                    e.preventDefault();
+                                                    resetMentionState();
+                                                    return;
+                                                }
+                                            }
                                             if (e.key === 'Enter' && !e.shiftKey) {
                                                 e.preventDefault();
                                                 handleSend();
@@ -971,6 +1069,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                             }
                                         }}
                                     />
+                                    {isMentionMenuOpen && (
+                                        <div className="mention_suggestions">
+                                            {mentionCandidates.map((candidate, index) => (
+                                                <button
+                                                    key={candidate.username}
+                                                    type="button"
+                                                    className={`mention_suggestion_item ${index === mentionSelectionIndex ? 'active' : ''}`}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        insertMention(candidate.username);
+                                                    }}
+                                                    title={`Mention @${candidate.username}`}
+                                                >
+                                                    <div className="mention_suggestion_avatar">
+                                                        {candidate.avatarUrl ? (
+                                                            <img src={candidate.avatarUrl} alt="" />
+                                                        ) : (
+                                                            candidate.displayName.charAt(0).toUpperCase()
+                                                        )}
+                                                    </div>
+                                                    <div className="mention_suggestion_text">
+                                                        <span>{candidate.displayName}</span>
+                                                        <small>@{candidate.username}</small>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         )}

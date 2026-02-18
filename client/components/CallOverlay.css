@@ -219,7 +219,7 @@
 .call_minimized_chip {
     position: fixed;
     right: 16px;
-    top: 16px;
+    top: 84px;
     bottom: auto;
     z-index: 1450;
     background: rgba(15, 23, 42, 0.96);
