@@ -47,6 +47,7 @@ const ParticipantTile: React.FC<{ participant: RemoteParticipant; callMode: 'aud
 };
 
 type MixerNode = {
+    streamId: string;
     source: MediaStreamAudioSourceNode;
     analyser: AnalyserNode;
     gain: GainNode;
@@ -84,7 +85,26 @@ const CallAudioMixer: React.FC<{ participants: RemoteParticipant[] }> = ({ parti
         const ids = new Set(participants.map(p => p.userId));
 
         for (const participant of participants) {
-            if (nodesRef.current.has(participant.userId)) continue;
+            const audioTracks = participant.stream.getAudioTracks();
+            if (!audioTracks || audioTracks.length === 0) {
+                const existingNoAudio = nodesRef.current.get(participant.userId);
+                if (existingNoAudio) {
+                    existingNoAudio.source.disconnect();
+                    existingNoAudio.analyser.disconnect();
+                    existingNoAudio.gain.disconnect();
+                    nodesRef.current.delete(participant.userId);
+                }
+                continue;
+            }
+
+            const existing = nodesRef.current.get(participant.userId);
+            if (existing && existing.streamId === participant.stream.id) continue;
+            if (existing) {
+                existing.source.disconnect();
+                existing.analyser.disconnect();
+                existing.gain.disconnect();
+                nodesRef.current.delete(participant.userId);
+            }
 
             const source = audioContext.createMediaStreamSource(participant.stream);
             const analyser = audioContext.createAnalyser();
@@ -98,6 +118,7 @@ const CallAudioMixer: React.FC<{ participants: RemoteParticipant[] }> = ({ parti
             gain.connect(compressor);
 
             nodesRef.current.set(participant.userId, {
+                streamId: participant.stream.id,
                 source,
                 analyser,
                 gain,
