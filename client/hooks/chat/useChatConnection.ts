@@ -92,6 +92,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     }, [chats]);
 
     const seenIncomingCallKeyRef = useRef<string | null>(null);
+    const pingedMessageIdsRef = useRef<Map<string, number>>(new Map());
     const mutedChatsRef = useRef(mutedChats);
 
     useEffect(() => {
@@ -154,7 +155,8 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     }, []);
 
     const pushNotification = useCallback((notification: Omit<InAppNotification, 'id' | 'createdAt'>) => {
-        if (notification.chatId && mutedChatsRef.current[notification.chatId]) {
+        const shouldBypassMute = notification.type === 'ping' || notification.type === 'reply';
+        if (!shouldBypassMute && notification.chatId && mutedChatsRef.current[notification.chatId]) {
             return;
         }
         const next: InAppNotification = {
@@ -230,6 +232,7 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         deliveredCount: dbMsg.deliveredCount || 0,
         seenCount: dbMsg.seenCount || 0,
         seenBy: dbMsg.seenBy || [],
+        seenByUsers: dbMsg.seenByUsers || [],
         updatedAt: dbMsg.updatedAt ? new Date(dbMsg.updatedAt).getTime() : undefined
     }), [settings.username]);
 
@@ -250,7 +253,11 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
                 [chatId]: (prev[chatId] || 0) + 1
             }));
         },
-        onIncomingNotification: ({ chatId, sender, text, messageType }) => {
+        onIncomingNotification: ({ chatId, sender, text, messageType, messageId }) => {
+            if (messageId && pingedMessageIdsRef.current.has(messageId)) {
+                pingedMessageIdsRef.current.delete(messageId);
+                return;
+            }
             const selfUsername = (settingsRef.current.username || '').trim();
             if (selfUsername && text) {
                 const escaped = selfUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -277,9 +284,12 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
                 body: preview
             });
         },
-        onMentionPing: ({ chatId, fromDisplayName, text, mentionedUsername }) => {
+        onMentionPing: ({ chatId, messageId, fromDisplayName, text, mentionedUsername }) => {
             const chatName = chatsRef.current.find(chat => chat.id === chatId)?.name || 'Chat';
             const mentionLabel = mentionedUsername || settingsRef.current.username || 'you';
+            if (messageId) {
+                pingedMessageIdsRef.current.set(messageId, Date.now());
+            }
             pushNotification({
                 type: 'ping',
                 chatId,
@@ -287,8 +297,11 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
                 body: text?.trim() || `Mentioned you in ${chatName}`
             });
         },
-        onReplyPing: ({ chatId, fromDisplayName, text }) => {
+        onReplyPing: ({ chatId, messageId, fromDisplayName, text }) => {
             const chatName = chatsRef.current.find(chat => chat.id === chatId)?.name || 'Chat';
+            if (messageId) {
+                pingedMessageIdsRef.current.set(messageId, Date.now());
+            }
             pushNotification({
                 type: 'reply',
                 chatId,
@@ -297,6 +310,15 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
             });
         }
     });
+
+    useEffect(() => {
+        const now = Date.now();
+        for (const [messageId, createdAt] of pingedMessageIdsRef.current.entries()) {
+            if (now - createdAt > 12000) {
+                pingedMessageIdsRef.current.delete(messageId);
+            }
+        }
+    }, [notifications]);
 
     // Action methods
     const actions = useChatActions({
@@ -339,6 +361,17 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     // Fetch all users for avatar caching
     const fetchUsers = useCallback(async () => {
         if (!token) return;
+
+        const withAvatarVersion = (avatarUrl?: string, updatedAt?: string | number | Date) => {
+            if (!avatarUrl) return undefined;
+            if (!updatedAt) return avatarUrl;
+
+            const version = new Date(updatedAt).getTime();
+            if (!Number.isFinite(version)) return avatarUrl;
+
+            const separator = avatarUrl.includes('?') ? '&' : '?';
+            return `${avatarUrl}${separator}v=${version}`;
+        };
         
         try {
             const response = await fetch(`${settings.serverUrl}/api/auth/users`, {
@@ -347,11 +380,11 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
                 }
             });
             if (response.ok) {
-                const data: { username: string; avatarUrl?: string; displayName: string }[] = await response.json();
+                const data: { username: string; avatarUrl?: string; displayName: string; updatedAt?: string | number | Date }[] = await response.json();
                 const usersMap: Record<string, UserInfo> = {};
                 data.forEach(u => {
                     usersMap[u.username.toLowerCase()] = {
-                        avatarUrl: u.avatarUrl,
+                        avatarUrl: withAvatarVersion(u.avatarUrl, u.updatedAt),
                         displayName: u.displayName
                     };
                 });

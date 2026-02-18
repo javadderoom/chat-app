@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Maximize2, Minimize2, Phone, PhoneOff, Video } from 'lucide-react';
+import { Camera, CameraOff, Maximize2, Minimize2, Phone, PhoneOff, Video } from 'lucide-react';
 import { RemoteParticipant } from '../hooks/chat/useWebRTCCall';
 import './CallOverlay.css';
 
@@ -17,6 +17,8 @@ interface CallOverlayProps {
     remoteParticipants: RemoteParticipant[];
     callPeerName: string;
     callError: string | null;
+    cameraEnabled: boolean;
+    toggleCamera: () => void;
     acceptCall: () => void;
     declineCall: () => void;
     endCall: () => void;
@@ -221,6 +223,8 @@ export const CallOverlay: React.FC<CallOverlayProps> = ({
     remoteParticipants,
     callPeerName,
     callError,
+    cameraEnabled,
+    toggleCamera,
     acceptCall,
     declineCall,
     endCall
@@ -365,7 +369,7 @@ export const CallOverlay: React.FC<CallOverlayProps> = ({
                                 </div>
                             )}
 
-                            {callMode === 'video' && (
+                            {callMode === 'video' && cameraEnabled && (
                                 <video ref={localVideoRef} className="call_video_local" autoPlay playsInline muted />
                             )}
                         </div>
@@ -382,9 +386,21 @@ export const CallOverlay: React.FC<CallOverlayProps> = ({
                                 </button>
                             </>
                         ) : (
-                            <button type="button" className="call_btn end" onClick={endCall} title="Leave call">
-                                <PhoneOff size={18} />
-                            </button>
+                            <>
+                                {callMode === 'video' && (
+                                    <button
+                                        type="button"
+                                        className={`call_btn ${cameraEnabled ? 'camera_on' : 'camera_off'}`}
+                                        onClick={toggleCamera}
+                                        title={cameraEnabled ? 'Turn camera off' : 'Turn camera on'}
+                                    >
+                                        {cameraEnabled ? <Camera size={18} /> : <CameraOff size={18} />}
+                                    </button>
+                                )}
+                                <button type="button" className="call_btn end" onClick={endCall} title="Leave call">
+                                    <PhoneOff size={18} />
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>

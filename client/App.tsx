@@ -43,8 +43,8 @@ const App: React.FC = () => {
     sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, deleteChat, pinMessage, unpinMessage, startTyping, stopTyping, users, typingUsers,
     unreadCounts, mutedChats, isChatMuted, setChatMuted, notifications, dismissNotification, firstUnreadMessageId,
     hasMoreMessages, isLoadingOlderMessages, loadOlderMessages,
-    callStatus, callMode, incomingCall, localStream, remoteParticipants, callPeerName, callError,
-    hasJoinableCallInActiveChat, joinActiveCall, startVoiceCall, startVideoCall, acceptCall, declineCall, endCall
+    callStatus, callMode, incomingCall, localStream, remoteParticipants, callPeerName, callError, cameraEnabled, toggleCamera,
+    hasJoinableCallInActiveChat, joinActiveCall, startVideoCall, acceptCall, declineCall, endCall
   } = useChatConnection(settings, token, user);
 
   const handleSaveSettings = (newSettings: UserSettings) => {
@@ -159,9 +159,10 @@ return (
         remoteParticipants={remoteParticipants}
         callPeerName={callPeerName}
         callError={callError}
+        cameraEnabled={cameraEnabled}
+        toggleCamera={toggleCamera}
         hasJoinableCallInActiveChat={hasJoinableCallInActiveChat}
         joinActiveCall={joinActiveCall}
-        startVoiceCall={startVoiceCall}
         startVideoCall={startVideoCall}
         acceptCall={acceptCall}
         declineCall={declineCall}

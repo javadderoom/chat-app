@@ -198,6 +198,7 @@ router.get('/users', verifyToken, async (req, res) => {
       username: users.username,
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
+      updatedAt: users.updatedAt,
     }).from(users);
     
     res.json(allUsers);
@@ -215,6 +216,7 @@ router.get('/user/:username', verifyToken, async (req, res) => {
       username: users.username,
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
+      updatedAt: users.updatedAt,
     }).from(users).where(eq(users.username, username.toLowerCase()));
     
     if (!user) {

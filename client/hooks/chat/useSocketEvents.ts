@@ -13,7 +13,7 @@ interface UseSocketEventsProps {
     setTypingUsers: Dispatch<SetStateAction<Array<{ userId: string; displayName: string }>>>;
     addMessage: (text: string, sender: string, isMe?: boolean, isSystem?: boolean, replyToId?: string, displayName?: string) => string;
     onInactiveChatMessage?: (chatId: string) => void;
-    onIncomingNotification?: (payload: { chatId: string; sender: string; text?: string; messageType?: string }) => void;
+    onIncomingNotification?: (payload: { chatId: string; sender: string; text?: string; messageType?: string; messageId?: string; replyToId?: string }) => void;
     onMentionPing?: (payload: { chatId: string; messageId?: string; fromDisplayName: string; text?: string; mentionedUsername?: string }) => void;
     onReplyPing?: (payload: { chatId: string; messageId?: string; fromDisplayName: string; text?: string }) => void;
 }
@@ -90,7 +90,9 @@ export const useSocketEvents = ({
                         chatId: data.chatId,
                         sender: data.displayName || data.user || data.username || 'Unknown',
                         text: data.text,
-                        messageType: data.messageType
+                        messageType: data.messageType,
+                        messageId: data.id,
+                        replyToId: data.replyToId
                     });
                 }
                 return;
@@ -129,7 +131,8 @@ export const useSocketEvents = ({
                         displayName: data.displayName || updatedMessages[matchedIndex].displayName,
                         deliveredCount: data.deliveredCount ?? updatedMessages[matchedIndex].deliveredCount ?? 0,
                         seenCount: data.seenCount ?? updatedMessages[matchedIndex].seenCount ?? 0,
-                        seenBy: data.seenBy ?? updatedMessages[matchedIndex].seenBy ?? []
+                        seenBy: data.seenBy ?? updatedMessages[matchedIndex].seenBy ?? [],
+                        seenByUsers: data.seenByUsers ?? updatedMessages[matchedIndex].seenByUsers ?? []
                     };
                     return updatedMessages;
                 }
@@ -167,7 +170,8 @@ export const useSocketEvents = ({
                     stickerId: data.stickerId,
                     deliveredCount: data.deliveredCount || 0,
                     seenCount: data.seenCount || 0,
-                    seenBy: data.seenBy || []
+                    seenBy: data.seenBy || [],
+                    seenByUsers: data.seenByUsers || []
                 };
                 return [...prev, newMessage];
             });
@@ -202,6 +206,12 @@ export const useSocketEvents = ({
             deliveredCount: number;
             seenCount: number;
             seenBy: string[];
+            seenByUsers?: Array<{
+                userId?: string;
+                username: string;
+                displayName: string;
+                avatarUrl?: string;
+            }>;
         }) => {
             setMessages(prev => prev.map(msg =>
                 msg.id === data.messageId
@@ -209,7 +219,8 @@ export const useSocketEvents = ({
                         ...msg,
                         deliveredCount: data.deliveredCount || 0,
                         seenCount: data.seenCount || 0,
-                        seenBy: data.seenBy || []
+                        seenBy: data.seenBy || [],
+                        seenByUsers: data.seenByUsers || []
                     }
                     : msg
             ));

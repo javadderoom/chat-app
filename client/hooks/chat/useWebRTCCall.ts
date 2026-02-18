@@ -69,6 +69,7 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
     const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipant[]>([]);
     const [callPeerName, setCallPeerName] = useState<string>('');
     const [callError, setCallError] = useState<string | null>(null);
+    const [cameraEnabled, setCameraEnabled] = useState(false);
     const [joinableCallsByChat, setJoinableCallsByChat] = useState<Record<string, JoinableCall>>({});
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -152,6 +153,7 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         setRemoteParticipants([]);
         setCallStatus('idle');
         setCallPeerName('');
+        setCameraEnabled(false);
         if (!preserveError) {
             setCallError(null);
         }
@@ -161,14 +163,63 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         }
     }, [closePeer, stopLocalMediaOnly]);
 
-    const ensureLocalStream = useCallback(async (mode: CallMode) => {
+    const ensureLocalStream = useCallback(async (mode: CallMode, withCamera = false) => {
         const stream = await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: mode === 'video'
+            video: mode === 'video' && withCamera
         });
         localStreamRef.current = stream;
         setLocalStream(stream);
+        setCameraEnabled(mode === 'video' && withCamera && stream.getVideoTracks().length > 0);
     }, []);
+
+    const toggleCamera = useCallback(async () => {
+        if (callMode !== 'video' || !localStreamRef.current) return;
+
+        const stream = localStreamRef.current;
+        const existingTrack = stream.getVideoTracks()[0];
+        const nextEnabled = !cameraEnabled;
+
+        if (nextEnabled) {
+            try {
+                const camStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+                const newTrack = camStream.getVideoTracks()[0];
+                if (!newTrack) return;
+
+                stream.addTrack(newTrack);
+
+                for (const peer of peersRef.current.values()) {
+                    const videoSender = peer.getSenders().find(sender => sender.track?.kind === 'video');
+                    if (videoSender) {
+                        await videoSender.replaceTrack(newTrack);
+                    } else {
+                        peer.addTrack(newTrack, stream);
+                    }
+                }
+
+                setCameraEnabled(true);
+                setLocalStream(stream);
+            } catch (_error) {
+                setCallError('Could not enable camera. Check browser permissions and HTTPS.');
+            }
+            return;
+        }
+
+        if (existingTrack) {
+            for (const peer of peersRef.current.values()) {
+                const videoSender = peer.getSenders().find(sender => sender.track?.kind === 'video');
+                if (videoSender) {
+                    await videoSender.replaceTrack(null);
+                }
+            }
+
+            stream.removeTrack(existingTrack);
+            existingTrack.stop();
+        }
+
+        setCameraEnabled(false);
+        setLocalStream(stream);
+    }, [callMode, cameraEnabled]);
 
     const flushPendingCandidates = useCallback(async (targetUserId: string, peer: RTCPeerConnection) => {
         const queue = pendingCandidatesRef.current.get(targetUserId) || [];
@@ -295,7 +346,7 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         try {
             setCallError(null);
             setCallMode(mode);
-            await ensureLocalStream(mode);
+            await ensureLocalStream(mode, false);
             activeCallChatIdRef.current = activeChatId;
             setCallStatus('calling');
             setCallPeerName('Waiting for participants...');
@@ -313,7 +364,7 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         try {
             setCallError(null);
             setCallMode(incomingCall.mode);
-            await ensureLocalStream(incomingCall.mode);
+            await ensureLocalStream(incomingCall.mode, false);
             activeCallChatIdRef.current = incomingCall.chatId;
             setCallStatus('connecting');
 
@@ -363,7 +414,7 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         try {
             setCallError(null);
             setCallMode(joinable.mode);
-            await ensureLocalStream(joinable.mode);
+            await ensureLocalStream(joinable.mode, false);
             activeCallChatIdRef.current = joinable.chatId;
             setCallStatus('connecting');
             socket.emit('call:accept', {
@@ -643,6 +694,8 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         remoteStream: remoteParticipants[0]?.stream || null,
         callPeerName,
         callError,
+        cameraEnabled,
+        toggleCamera,
         joinableCallsByChat,
         hasJoinableCallInActiveChat: !!(activeChatId && joinableCallsByChat[activeChatId]),
         startVoiceCall: () => startCall('audio'),

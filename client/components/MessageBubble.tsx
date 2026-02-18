@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Mic, Share2, Edit2, Trash2, Smile, MessageCircle, Pin, PinOff, Check, CheckCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Mic, Share2, Edit2, Trash2, MessageCircle, Pin, PinOff, Check, CheckCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { AnimatedSticker } from './AnimatedSticker';
@@ -58,12 +58,70 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     truncateText,
     onProfileClick,
 }) => {
-    const [showReactionsList, setShowReactionsList] = useState(false);
     const [showSeenByList, setShowSeenByList] = useState(false);
     const hasMedia = msg.messageType === 'image' || msg.messageType === 'video' || msg.messageType === 'audio' || msg.messageType === 'voice';
     const seenBy = msg.seenBy || [];
+    const seenByUsers = msg.seenByUsers || [];
     const hasSeen = seenBy.length > 0;
     const hasDelivered = (msg.deliveredCount || 0) > 0;
+    const hasReactions = !!(msg.reactions && Object.keys(msg.reactions).length > 0);
+    const mergedActivityUsers = (() => {
+        const map = new Map<string, { key: string; displayName: string; avatarUrl?: string; seen: boolean; emojis: string[] }>();
+
+        seenByUsers.forEach((entry) => {
+            const username = (entry.username || '').trim();
+            const displayName = (entry.displayName || username || '').trim();
+            const key = username.toLowerCase();
+            if (!key) return;
+            const userData = users[key];
+            map.set(key, {
+                key,
+                displayName: displayName || username,
+                avatarUrl: userData?.avatarUrl || entry.avatarUrl,
+                seen: true,
+                emojis: []
+            });
+        });
+
+        if (seenByUsers.length === 0) {
+            seenBy.forEach((name) => {
+                const key = name.trim().toLowerCase();
+                if (!key) return;
+                const userData = users[key];
+                map.set(key, {
+                    key,
+                    displayName: name,
+                    avatarUrl: userData?.avatarUrl,
+                    seen: true,
+                    emojis: []
+                });
+            });
+        }
+
+        Object.entries(msg.reactions ?? {}).forEach(([emoji, reactors]) => {
+            reactors.forEach((username) => {
+                const key = username.trim().toLowerCase();
+                if (!key) return;
+                const userData = users[key];
+                const existing = map.get(key);
+                if (existing) {
+                    if (!existing.emojis.includes(emoji)) existing.emojis.push(emoji);
+                    if (userData?.avatarUrl && !existing.avatarUrl) existing.avatarUrl = userData.avatarUrl;
+                    if (!existing.displayName) existing.displayName = userData?.displayName || username;
+                    return;
+                }
+                map.set(key, {
+                    key,
+                    displayName: userData?.displayName || username,
+                    avatarUrl: userData?.avatarUrl,
+                    seen: false,
+                    emojis: [emoji]
+                });
+            });
+        });
+
+        return Array.from(map.values());
+    })();
     
     return (
         <div
@@ -130,42 +188,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                             </button>
                                         ))}
                                     </div>
-                                    {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                                        <>
-                                            <button
-                                                onClick={(e: React.MouseEvent) => { e.stopPropagation(); setShowReactionsList(!showReactionsList); }}
-                                                className="menu_item"
-                                            >
-                                                <Smile size={14} />
-                                                <span>Reactions</span>
-                                            </button>
-                                            {showReactionsList && (
-                                                <div className="reactions_submenu">
-                                                    {Object.entries(msg.reactions ?? {}).map(([emoji, reactors]: [string, string[]]) => {
-                                                        return reactors.map((user: string) => {
-                                                            const userData = users[user.toLowerCase()];
-                                                            const avatarUrl = userData?.avatarUrl;
-                                                            return (
-                                                                <div key={`${emoji}-${user}`} className="reaction_user">
-                                                                    <div className="reaction_user_avatar">
-                                                                        {avatarUrl ? (
-                                                                            <img src={avatarUrl} alt="" />
-                                                                        ) : (
-                                                                            user.charAt(0).toUpperCase()
-                                                                        )}
-                                                                    </div>
-                                                                    <span className="reaction_user_name">{userData?.displayName || user}</span>
-                                                                    <span className="reaction_user_emoji">{emoji}</span>
-                                                                </div>
-                                                            );
-                                                        });
-                                                    })}
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-
-                                    {(msg.isMe && (hasDelivered || hasSeen)) && (
+                                    {(msg.isMe && (hasDelivered || hasSeen || hasReactions)) && (
                                         <>
                                             <div className="menu_divider"></div>
                                             <div className="menu_section">
@@ -181,11 +204,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                                                     {showSeenByList ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                                 </button>
                                                 <div className={`menu_seen_content ${showSeenByList ? 'open' : ''}`}>
-                                                    {hasSeen ? (
+                                                    {mergedActivityUsers.length > 0 ? (
                                                         <div className="menu_seen_list">
-                                                            {seenBy.map((name) => (
-                                                                <div key={name} className="menu_seen_item">
-                                                                    {name}
+                                                            {mergedActivityUsers.map((entry) => (
+                                                                <div key={entry.key} className="reaction_user">
+                                                                    <div className="reaction_user_avatar">
+                                                                        {entry.avatarUrl ? (
+                                                                            <img src={entry.avatarUrl} alt="" />
+                                                                        ) : (
+                                                                            entry.displayName.charAt(0).toUpperCase()
+                                                                        )}
+                                                                    </div>
+                                                                    <span className="reaction_user_name">{entry.displayName}</span>
+                                                                    <div className="reaction_user_meta">
+                                                                        {entry.seen && <span className="reaction_user_seen">Seen</span>}
+                                                                        {entry.emojis.length > 0 && (
+                                                                            <span className="reaction_user_emojis">{entry.emojis.join(' ')}</span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             ))}
                                                         </div>

@@ -80,7 +80,18 @@ router.get('/messages', verifyToken, async (req, res) => {
               CASE WHEN r.seen_at IS NOT NULL THEN COALESCE(u.display_name, u.username) END
             ),
             NULL
-          ) AS "seenBy"
+          ) AS "seenBy",
+          COALESCE(
+            JSONB_AGG(
+              DISTINCT JSONB_BUILD_OBJECT(
+                'userId', u.id,
+                'username', u.username,
+                'displayName', COALESCE(u.display_name, u.username),
+                'avatarUrl', u.avatar_url
+              )
+            ) FILTER (WHERE r.seen_at IS NOT NULL AND u.id IS NOT NULL),
+            '[]'::jsonb
+          ) AS "seenByUsers"
         FROM message_receipts r
         LEFT JOIN users u ON u.id = r.user_id
         WHERE r.message_id = ANY($1::uuid[])
@@ -92,7 +103,8 @@ router.get('/messages', verifyToken, async (req, res) => {
         receiptsByMessageId.set(row.messageId, {
           deliveredCount: row.deliveredCount || 0,
           seenCount: row.seenCount || 0,
-          seenBy: row.seenBy || []
+          seenBy: row.seenBy || [],
+          seenByUsers: row.seenByUsers || []
         });
       }
     }
@@ -101,13 +113,15 @@ router.get('/messages', verifyToken, async (req, res) => {
       const receipt = receiptsByMessageId.get(message.id) || {
         deliveredCount: 0,
         seenCount: 0,
-        seenBy: []
+        seenBy: [],
+        seenByUsers: []
       };
       return {
         ...message,
         deliveredCount: receipt.deliveredCount,
         seenCount: receipt.seenCount,
-        seenBy: receipt.seenBy
+        seenBy: receipt.seenBy,
+        seenByUsers: receipt.seenByUsers
       };
     });
 

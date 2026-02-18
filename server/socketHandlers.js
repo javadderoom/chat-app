@@ -81,7 +81,18 @@ function createSocketHandlers(io, onlineUsers) {
             CASE WHEN r.seen_at IS NOT NULL THEN COALESCE(u.display_name, u.username) END
           ),
           NULL
-        ) AS "seenBy"
+        ) AS "seenBy",
+        COALESCE(
+          JSONB_AGG(
+            DISTINCT JSONB_BUILD_OBJECT(
+              'userId', u.id,
+              'username', u.username,
+              'displayName', COALESCE(u.display_name, u.username),
+              'avatarUrl', u.avatar_url
+            )
+          ) FILTER (WHERE r.seen_at IS NOT NULL AND u.id IS NOT NULL),
+          '[]'::jsonb
+        ) AS "seenByUsers"
       FROM message_receipts r
       LEFT JOIN users u ON u.id = r.user_id
       WHERE r.message_id = ANY($1::uuid[])
@@ -95,7 +106,8 @@ function createSocketHandlers(io, onlineUsers) {
       result.set(row.messageId, {
         deliveredCount: row.deliveredCount || 0,
         seenCount: row.seenCount || 0,
-        seenBy: row.seenBy || []
+        seenBy: row.seenBy || [],
+        seenByUsers: row.seenByUsers || []
       });
     }
     return result;
@@ -110,7 +122,8 @@ function createSocketHandlers(io, onlineUsers) {
       const aggregate = receiptMap.get(messageId) || {
         deliveredCount: 0,
         seenCount: 0,
-        seenBy: []
+        seenBy: [],
+        seenByUsers: []
       };
       io.to(chatId).emit('messageReceiptUpdated', {
         messageId,
@@ -270,6 +283,7 @@ function createSocketHandlers(io, onlineUsers) {
         emitActiveCallToSocket({ socket, chatId, userId });
 
         if (shouldMarkSeen) {
+          socket.data.activeSeenChatId = chatId;
           try {
             const changedMessageIds = await markChatReceipts({
               chatId,
@@ -288,6 +302,7 @@ function createSocketHandlers(io, onlineUsers) {
 
     socket.on('markChatSeen', async (chatId) => {
       if (!chatId || !userId) return;
+      socket.data.activeSeenChatId = chatId;
       try {
         const changedMessageIds = await markChatReceipts({
           chatId,
@@ -381,27 +396,43 @@ function createSocketHandlers(io, onlineUsers) {
         let receiptAggregate = {
           deliveredCount: 0,
           seenCount: 0,
-          seenBy: []
+          seenBy: [],
+          seenByUsers: []
         };
         let mentionTargets = [];
         let replyTarget = null;
 
         if (insertValues.chatId) {
           const roomSockets = io.sockets.adapter.rooms.get(insertValues.chatId) || new Set();
-          const roomUserIds = [];
+          const deliveredUserIds = [];
+          const seenUserIds = [];
           for (const socketId of roomSockets) {
             const roomSocket = io.sockets.sockets.get(socketId);
             if (!roomSocket?.userId) continue;
             if (roomSocket.userId === userId) continue;
-            roomUserIds.push(roomSocket.userId);
+            deliveredUserIds.push(roomSocket.userId);
+            if (roomSocket.data?.activeSeenChatId === insertValues.chatId) {
+              seenUserIds.push(roomSocket.userId);
+            }
           }
 
-          if (roomUserIds.length > 0) {
+          if (deliveredUserIds.length > 0) {
             await upsertReceiptsForMessages({
-              targetUserIds: roomUserIds,
+              targetUserIds: deliveredUserIds,
+              messageIds: [savedMessage.id],
+              markSeen: false
+            });
+          }
+
+          if (seenUserIds.length > 0) {
+            await upsertReceiptsForMessages({
+              targetUserIds: seenUserIds,
               messageIds: [savedMessage.id],
               markSeen: true
             });
+            const aggregateMap = await getReceiptAggregates([savedMessage.id]);
+            receiptAggregate = aggregateMap.get(savedMessage.id) || receiptAggregate;
+          } else if (deliveredUserIds.length > 0) {
             const aggregateMap = await getReceiptAggregates([savedMessage.id]);
             receiptAggregate = aggregateMap.get(savedMessage.id) || receiptAggregate;
           }
@@ -425,6 +456,9 @@ function createSocketHandlers(io, onlineUsers) {
                 replyToId: insertValues.replyToId,
                 senderUserId: userId
               });
+              if (replyTarget?.id && mentionTargets.length > 0) {
+                mentionTargets = mentionTargets.filter(target => target.id !== replyTarget.id);
+              }
             } catch (replyError) {
               console.error('Error resolving reply target:', replyError);
             }
@@ -435,21 +469,6 @@ function createSocketHandlers(io, onlineUsers) {
           socket.to(insertValues.chatId).emit('typingStopped', {
             chatId: insertValues.chatId,
             userId
-          });
-          io.to(insertValues.chatId).emit('message', {
-            ...data,
-            id: savedMessage.id,
-            chatId: savedMessage.chatId,
-            createdAt: savedMessage.createdAt,
-            replyToId: savedMessage.replyToId,
-            isForwarded: savedMessage.isForwarded,
-            forwardedFrom: savedMessage.forwardedFrom,
-            userId: savedMessage.userId,
-            username: savedMessage.username,
-            displayName: user?.displayName || savedMessage.username,
-            deliveredCount: receiptAggregate.deliveredCount,
-            seenCount: receiptAggregate.seenCount,
-            seenBy: receiptAggregate.seenBy
           });
 
           if (mentionTargets.length > 0) {
@@ -483,6 +502,22 @@ function createSocketHandlers(io, onlineUsers) {
               });
             }
           }
+
+          io.to(insertValues.chatId).emit('message', {
+            ...data,
+            id: savedMessage.id,
+            chatId: savedMessage.chatId,
+            createdAt: savedMessage.createdAt,
+            replyToId: savedMessage.replyToId,
+            isForwarded: savedMessage.isForwarded,
+            forwardedFrom: savedMessage.forwardedFrom,
+            userId: savedMessage.userId,
+            username: savedMessage.username,
+            displayName: user?.displayName || savedMessage.username,
+            deliveredCount: receiptAggregate.deliveredCount,
+            seenCount: receiptAggregate.seenCount,
+            seenBy: receiptAggregate.seenBy
+          });
         } else {
           io.emit('message', {
             ...data,

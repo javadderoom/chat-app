@@ -979,18 +979,19 @@ footer {
 }
 
 .reactions_submenu {
-    max-height: 150px;
+    max-height: 110px;
     overflow-y: auto;
     border-bottom: 1px solid #30363d;
-    padding: 4px 0;
+    padding: 2px 0;
 }
 
 .reaction_user {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    font-size: 12px;
+    gap: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    line-height: 1.2;
     color: #c9d1d9;
 }
 
@@ -999,17 +1000,40 @@ footer {
 }
 
 .reaction_user_emoji {
-    font-size: 14px;
+    font-size: 12px;
     margin-left: auto;
 }
 
 .reaction_user_name {
     font-weight: 500;
+    max-width: 122px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reaction_user_meta {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.reaction_user_seen {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #8b949e;
+}
+
+.reaction_user_emojis {
+    font-size: 12px;
+    line-height: 1;
 }
 
 .reaction_user_avatar {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: var(--glass-hover);
     display: flex;
@@ -1034,7 +1058,7 @@ footer {
 }
 
 .menu_section {
-    padding: 6px 10px;
+    padding: 4px 10px;
 }
 
 .menu_section_title {
@@ -1066,27 +1090,28 @@ footer {
 }
 
 .menu_seen_content.open {
-    max-height: 180px;
+    max-height: 120px;
     opacity: 1;
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 .menu_seen_list {
-    max-height: 140px;
+    max-height: 100px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
 }
 
 .menu_seen_item {
-    font-size: 12px;
+    font-size: 11px;
     color: #c9d1d9;
-    padding: 3px 0;
+    padding: 2px 0;
+    line-height: 1.2;
 }
 
 .menu_seen_empty {
-    font-size: 12px;
+    font-size: 11px;
     color: #8b949e;
 }
 

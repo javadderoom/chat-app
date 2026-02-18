@@ -73,9 +73,10 @@ interface ChatViewProps {
     remoteParticipants: RemoteParticipant[];
     callPeerName: string;
     callError: string | null;
+    cameraEnabled: boolean;
+    toggleCamera: () => void;
     hasJoinableCallInActiveChat: boolean;
     joinActiveCall: (chatId: string) => void;
-    startVoiceCall: () => void;
     startVideoCall: () => void;
     acceptCall: () => void;
     declineCall: () => void;
@@ -123,9 +124,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
     remoteParticipants,
     callPeerName,
     callError,
+    cameraEnabled,
+    toggleCamera,
     hasJoinableCallInActiveChat,
     joinActiveCall,
-    startVoiceCall,
     startVideoCall,
     acceptCall,
     declineCall,
@@ -627,15 +629,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <button
                         type="button"
                         className="chat_settings_btn"
-                        title="Start voice call"
-                        onClick={startVoiceCall}
-                        disabled={!activeChat?.id || settings.isDemoMode}
-                    >
-                        <Phone size={20} />
-                    </button>
-                    <button
-                        type="button"
-                        className="chat_settings_btn"
                         title="Start video call"
                         onClick={startVideoCall}
                         disabled={!activeChat?.id || settings.isDemoMode}
@@ -1064,6 +1057,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 remoteParticipants={remoteParticipants}
                 callPeerName={callPeerName}
                 callError={callError}
+                cameraEnabled={cameraEnabled}
+                toggleCamera={toggleCamera}
                 acceptCall={acceptCall}
                 declineCall={declineCall}
                 endCall={endCall}

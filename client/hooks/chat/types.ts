@@ -21,4 +21,10 @@ export interface DbMessage {
     deliveredCount?: number;
     seenCount?: number;
     seenBy?: string[];
+    seenByUsers?: Array<{
+        userId?: string;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    }>;
 }

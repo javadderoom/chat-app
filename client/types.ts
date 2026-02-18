@@ -25,6 +25,12 @@ export interface Message {
   deliveredCount?: number;
   seenCount?: number;
   seenBy?: string[];
+  seenByUsers?: Array<{
+    userId?: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+  }>;
 }
 
 export interface PinnedMessageSummary {

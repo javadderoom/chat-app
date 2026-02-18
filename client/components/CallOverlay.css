@@ -208,6 +208,14 @@
     background: #dc2626;
 }
 
+.call_btn.camera_on {
+    background: #0ea5e9;
+}
+
+.call_btn.camera_off {
+    background: #475569;
+}
+
 .call_minimized_chip {
     position: fixed;
     right: 16px;
