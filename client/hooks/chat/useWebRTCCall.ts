@@ -166,11 +166,17 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
     const ensureLocalStream = useCallback(async (mode: CallMode, withCamera = false) => {
         const stream = await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: mode === 'video' && withCamera
+            video: mode === 'video'
         });
+        if (mode === 'video') {
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !!withCamera;
+            }
+        }
         localStreamRef.current = stream;
         setLocalStream(stream);
-        setCameraEnabled(mode === 'video' && withCamera && stream.getVideoTracks().length > 0);
+        setCameraEnabled(mode === 'video' && !!withCamera);
     }, []);
 
     const toggleCamera = useCallback(async () => {
@@ -178,46 +184,16 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
 
         const stream = localStreamRef.current;
         const existingTrack = stream.getVideoTracks()[0];
-        const nextEnabled = !cameraEnabled;
-
-        if (nextEnabled) {
-            try {
-                const camStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
-                const newTrack = camStream.getVideoTracks()[0];
-                if (!newTrack) return;
-
-                stream.addTrack(newTrack);
-
-                for (const peer of peersRef.current.values()) {
-                    const videoSender = peer.getSenders().find(sender => sender.track?.kind === 'video');
-                    if (videoSender) {
-                        await videoSender.replaceTrack(newTrack);
-                    } else {
-                        peer.addTrack(newTrack, stream);
-                    }
-                }
-
-                setCameraEnabled(true);
-                setLocalStream(stream);
-            } catch (_error) {
-                setCallError('Could not enable camera. Check browser permissions and HTTPS.');
-            }
+        if (!existingTrack) {
+            setCallError('Camera track is unavailable in current call.');
             return;
         }
-
-        if (existingTrack) {
-            for (const peer of peersRef.current.values()) {
-                const videoSender = peer.getSenders().find(sender => sender.track?.kind === 'video');
-                if (videoSender) {
-                    await videoSender.replaceTrack(null);
-                }
-            }
-
-            stream.removeTrack(existingTrack);
-            existingTrack.stop();
+        const nextEnabled = !cameraEnabled;
+        existingTrack.enabled = nextEnabled;
+        if (nextEnabled) {
+            setCallError(null);
         }
-
-        setCameraEnabled(false);
+        setCameraEnabled(nextEnabled);
         setLocalStream(stream);
     }, [callMode, cameraEnabled]);
 
