@@ -183,10 +183,33 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         if (callMode !== 'video' || !localStreamRef.current) return;
 
         const stream = localStreamRef.current;
-        const existingTrack = stream.getVideoTracks()[0];
-        if (!existingTrack) {
-            setCallError('Camera track is unavailable in current call.');
-            return;
+        let existingTrack = stream.getVideoTracks()[0];
+        if (!existingTrack || existingTrack.readyState === 'ended') {
+            try {
+                const camStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+                const newTrack = camStream.getVideoTracks()[0];
+                if (!newTrack) {
+                    setCallError('Camera track is unavailable in current call.');
+                    return;
+                }
+                if (existingTrack) {
+                    stream.removeTrack(existingTrack);
+                    existingTrack.stop();
+                }
+                stream.addTrack(newTrack);
+                for (const peer of peersRef.current.values()) {
+                    const videoSender = peer.getSenders().find(sender => sender.track?.kind === 'video');
+                    if (videoSender) {
+                        await videoSender.replaceTrack(newTrack);
+                    } else {
+                        peer.addTrack(newTrack, stream);
+                    }
+                }
+                existingTrack = newTrack;
+            } catch (_error) {
+                setCallError('Could not access camera. Check browser permissions and HTTPS.');
+                return;
+            }
         }
         const nextEnabled = !cameraEnabled;
         existingTrack.enabled = nextEnabled;

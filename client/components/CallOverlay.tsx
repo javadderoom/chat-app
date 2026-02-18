@@ -30,6 +30,7 @@ const ParticipantTile: React.FC<{ participant: RemoteParticipant; callMode: 'aud
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.srcObject = participant.stream;
+            videoRef.current.play().catch(() => { });
         }
     }, [participant.stream]);
 
@@ -108,7 +109,12 @@ const CallAudioMixer: React.FC<{ participants: RemoteParticipant[] }> = ({ parti
                 nodesRef.current.delete(participant.userId);
             }
 
-            const source = audioContext.createMediaStreamSource(participant.stream);
+            let source: MediaStreamAudioSourceNode;
+            try {
+                source = audioContext.createMediaStreamSource(participant.stream);
+            } catch (_error) {
+                continue;
+            }
             const analyser = audioContext.createAnalyser();
             analyser.fftSize = 512;
             analyser.smoothingTimeConstant = 0.75;
@@ -157,7 +163,12 @@ const CallAudioMixer: React.FC<{ participants: RemoteParticipant[] }> = ({ parti
             const levels = new Map<string, number>();
 
             for (const [userId, node] of nodesRef.current.entries()) {
-                const level = calculateLevel(node);
+                let level = 0;
+                try {
+                    level = calculateLevel(node);
+                } catch (_error) {
+                    continue;
+                }
                 levels.set(userId, level);
                 if (level > dominantLevel) {
                     dominantLevel = level;
@@ -235,8 +246,9 @@ export const CallOverlay: React.FC<CallOverlayProps> = ({
     useEffect(() => {
         if (localVideoRef.current) {
             localVideoRef.current.srcObject = localStream;
+            localVideoRef.current.play().catch(() => { });
         }
-    }, [localStream]);
+    }, [localStream, cameraEnabled]);
 
     const showIncoming = callStatus === 'incoming' && incomingCall;
     const title = showIncoming
