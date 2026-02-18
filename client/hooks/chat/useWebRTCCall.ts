@@ -15,6 +15,14 @@ interface IncomingCall {
     callerId: string;
     callerDisplayName: string;
     mode: CallMode;
+    isOngoing?: boolean;
+}
+
+interface JoinableCall {
+    chatId: string;
+    callerId: string;
+    callerDisplayName: string;
+    mode: CallMode;
 }
 
 export interface RemoteParticipant {
@@ -61,6 +69,7 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
     const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipant[]>([]);
     const [callPeerName, setCallPeerName] = useState<string>('');
     const [callError, setCallError] = useState<string | null>(null);
+    const [joinableCallsByChat, setJoinableCallsByChat] = useState<Record<string, JoinableCall>>({});
 
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
@@ -332,9 +341,49 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
             chatId: incomingCall.chatId,
             callerId: incomingCall.callerId
         });
+        setJoinableCallsByChat(prev => {
+            if (!prev[incomingCall.chatId]) return prev;
+            const next = { ...prev };
+            delete next[incomingCall.chatId];
+            return next;
+        });
         setIncomingCall(null);
         setCallStatus('idle');
     }, [incomingCall, socket]);
+
+    const joinActiveCall = useCallback(async (chatId: string) => {
+        if (!chatId) return;
+        const joinable = joinableCallsByChat[chatId];
+        if (!joinable) return;
+        if (!socket || !socket.connected) {
+            setCallError('Not connected to signaling server.');
+            return;
+        }
+
+        try {
+            setCallError(null);
+            setCallMode(joinable.mode);
+            await ensureLocalStream(joinable.mode);
+            activeCallChatIdRef.current = joinable.chatId;
+            setCallStatus('connecting');
+            socket.emit('call:accept', {
+                chatId: joinable.chatId,
+                callerId: joinable.callerId,
+                isVideo: joinable.mode === 'video'
+            });
+            setIncomingCall(null);
+            setJoinableCallsByChat(prev => {
+                if (!prev[joinable.chatId]) return prev;
+                const next = { ...prev };
+                delete next[joinable.chatId];
+                return next;
+            });
+        } catch (_error) {
+            setCallStatus('idle');
+            setCallError('Could not access microphone/camera. Check browser permissions and HTTPS.');
+            stopLocalMediaOnly();
+        }
+    }, [ensureLocalStream, joinableCallsByChat, socket, stopLocalMediaOnly]);
 
     const endCall = useCallback(() => {
         const chatId = activeCallChatIdRef.current || currentChatIdRef.current;
@@ -354,6 +403,17 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
             if (!data?.chatId || !data?.callerId) return;
 
             const mode: CallMode = data.isVideo ? 'video' : 'audio';
+            if (data.isOngoing) {
+                setJoinableCallsByChat(prev => ({
+                    ...prev,
+                    [data.chatId]: {
+                        chatId: data.chatId,
+                        callerId: data.callerId,
+                        callerDisplayName: data.callerDisplayName || data.callerUsername || 'Unknown',
+                        mode
+                    }
+                }));
+            }
             const sameCall = activeCallChatIdRef.current && activeCallChatIdRef.current === data.chatId && callStatus !== 'idle';
             if (sameCall) {
                 // Already in this room call; acknowledge so caller can establish mesh peer.
@@ -375,7 +435,8 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
                 chatId: data.chatId,
                 callerId: data.callerId,
                 callerDisplayName: data.callerDisplayName || data.callerUsername || 'Unknown',
-                mode
+                mode,
+                isOngoing: !!data.isOngoing
             });
             setCallStatus('incoming');
         };
@@ -511,6 +572,16 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
 
         const onCallEnded = (data: any) => {
             const endedById = data?.endedById;
+            const endedChatId = data?.chatId;
+
+            if (endedChatId) {
+                setJoinableCallsByChat(prev => {
+                    if (!prev[endedChatId]) return prev;
+                    const next = { ...prev };
+                    delete next[endedChatId];
+                    return next;
+                });
+            }
 
             if (endedById && peersRef.current.has(endedById)) {
                 closePeer(endedById);
@@ -572,8 +643,11 @@ export const useWebRTCCall = ({ socket, activeChatId, user }: UseWebRTCCallOptio
         remoteStream: remoteParticipants[0]?.stream || null,
         callPeerName,
         callError,
+        joinableCallsByChat,
+        hasJoinableCallInActiveChat: !!(activeChatId && joinableCallsByChat[activeChatId]),
         startVoiceCall: () => startCall('audio'),
         startVideoCall: () => startCall('video'),
+        joinActiveCall,
         acceptCall,
         declineCall,
         endCall

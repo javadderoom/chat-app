@@ -42,7 +42,7 @@ const App: React.FC = () => {
     unreadCounts, firstUnreadMessageId,
     hasMoreMessages, isLoadingOlderMessages, loadOlderMessages,
     callStatus, callMode, incomingCall, localStream, remoteParticipants, callPeerName, callError,
-    startVoiceCall, startVideoCall, acceptCall, declineCall, endCall
+    hasJoinableCallInActiveChat, joinActiveCall, startVoiceCall, startVideoCall, acceptCall, declineCall, endCall
   } = useChatConnection(settings, token, user);
 
   const handleSaveSettings = (newSettings: UserSettings) => {
@@ -127,6 +127,8 @@ return (
         remoteParticipants={remoteParticipants}
         callPeerName={callPeerName}
         callError={callError}
+        hasJoinableCallInActiveChat={hasJoinableCallInActiveChat}
+        joinActiveCall={joinActiveCall}
         startVoiceCall={startVoiceCall}
         startVideoCall={startVideoCall}
         acceptCall={acceptCall}

@@ -66,11 +66,13 @@ interface ChatViewProps {
     loadOlderMessages: () => Promise<number>;
     callStatus: 'idle' | 'calling' | 'incoming' | 'connecting' | 'in-call';
     callMode: 'audio' | 'video';
-    incomingCall: { callerDisplayName: string; mode: 'audio' | 'video' } | null;
+    incomingCall: { callerDisplayName: string; mode: 'audio' | 'video'; isOngoing?: boolean } | null;
     localStream: MediaStream | null;
     remoteParticipants: RemoteParticipant[];
     callPeerName: string;
     callError: string | null;
+    hasJoinableCallInActiveChat: boolean;
+    joinActiveCall: (chatId: string) => void;
     startVoiceCall: () => void;
     startVideoCall: () => void;
     acceptCall: () => void;
@@ -117,6 +119,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     remoteParticipants,
     callPeerName,
     callError,
+    hasJoinableCallInActiveChat,
+    joinActiveCall,
     startVoiceCall,
     startVideoCall,
     acceptCall,
@@ -627,6 +631,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     >
                         <VideoIcon size={20} />
                     </button>
+                    {hasJoinableCallInActiveChat && (
+                        <button
+                            type="button"
+                            className="chat_settings_btn"
+                            title="Join active call"
+                            onClick={() => activeChat?.id && joinActiveCall(activeChat.id)}
+                            disabled={!activeChat?.id || settings.isDemoMode}
+                        >
+                            <Phone size={20} />
+                        </button>
+                    )}
                     <button
                         type="button"
                         className="chat_settings_btn"

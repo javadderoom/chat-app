@@ -1,7 +1,7 @@
 const { db, pool } = require('./db/index');
 const { messages, chats, users, chatMembers } = require('./db/schema');
 const { eq, and } = require('drizzle-orm');
-const { registerCallSignalingHandlers } = require('./callSignaling');
+const { registerCallSignalingHandlers, emitActiveCallToSocket, removeUserFromActiveCalls } = require('./callSignaling');
 
 function createSocketHandlers(io, onlineUsers) {
   async function getReceiptAggregates(messageIds = []) {
@@ -204,6 +204,7 @@ function createSocketHandlers(io, onlineUsers) {
         }
 
         socket.join(chatId);
+        emitActiveCallToSocket({ socket, chatId, userId });
 
         if (shouldMarkSeen) {
           try {
@@ -649,6 +650,7 @@ function createSocketHandlers(io, onlineUsers) {
           reason: 'disconnected'
         });
       }
+      removeUserFromActiveCalls(userId);
       onlineUsers.delete(userId);
     });
   });

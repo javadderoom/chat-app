@@ -1,3 +1,39 @@
+const activeCalls = new Map();
+
+function getActiveCallPayload(chatId, forUserId = null) {
+  const call = activeCalls.get(chatId);
+  if (!call) return null;
+  return {
+    chatId: call.chatId,
+    callerId: call.startedById,
+    callerUsername: call.startedByUsername,
+    callerDisplayName: call.startedByDisplayName,
+    isVideo: !!call.isVideo,
+    isOngoing: true,
+    startedAt: call.startedAt,
+    participantIds: Array.from(call.participants).filter((id) => id !== forUserId)
+  };
+}
+
+function emitActiveCallToSocket({ socket, chatId, userId }) {
+  const payload = getActiveCallPayload(chatId, userId);
+  if (!payload) return;
+  socket.emit('call:incoming', payload);
+}
+
+function removeUserFromActiveCalls(userId) {
+  if (!userId) return;
+  for (const [chatId, call] of activeCalls.entries()) {
+    if (!call?.participants) continue;
+    call.participants.delete(userId);
+    if (call.participants.size === 0) {
+      activeCalls.delete(chatId);
+    } else {
+      activeCalls.set(chatId, call);
+    }
+  }
+}
+
 function registerCallSignalingHandlers({ socket, io, onlineUsers, userId, username, displayName }) {
   const emitToUser = (targetUserId, eventName, payload) => {
     if (!targetUserId) return;
@@ -10,18 +46,35 @@ function registerCallSignalingHandlers({ socket, io, onlineUsers, userId, userna
     const { chatId, isVideo } = data;
     if (!chatId || !userId) return;
 
+    activeCalls.set(chatId, {
+      chatId,
+      startedById: userId,
+      startedByUsername: username,
+      startedByDisplayName: displayName,
+      isVideo: !!isVideo,
+      participants: new Set([userId]),
+      startedAt: Date.now()
+    });
+
     socket.to(chatId).emit('call:incoming', {
       chatId,
       callerId: userId,
       callerUsername: username,
       callerDisplayName: displayName,
-      isVideo: !!isVideo
+      isVideo: !!isVideo,
+      isOngoing: false
     });
   });
 
   socket.on('call:accept', (data = {}) => {
     const { chatId, callerId, isVideo } = data;
     if (!chatId || !callerId || !userId) return;
+    const call = activeCalls.get(chatId);
+    if (call) {
+      call.participants.add(userId);
+      call.isVideo = !!isVideo;
+      activeCalls.set(chatId, call);
+    }
 
     emitToUser(callerId, 'call:accepted', {
       chatId,
@@ -91,6 +144,15 @@ function registerCallSignalingHandlers({ socket, io, onlineUsers, userId, userna
   socket.on('call:end', (data = {}) => {
     const { chatId, targetUserId, reason } = data;
     if (!chatId || !userId) return;
+    const call = activeCalls.get(chatId);
+    if (call) {
+      call.participants.delete(userId);
+      if (call.participants.size === 0) {
+        activeCalls.delete(chatId);
+      } else {
+        activeCalls.set(chatId, call);
+      }
+    }
 
     if (targetUserId) {
       emitToUser(targetUserId, 'call:ended', {
@@ -110,5 +172,7 @@ function registerCallSignalingHandlers({ socket, io, onlineUsers, userId, userna
 }
 
 module.exports = {
-  registerCallSignalingHandlers
+  registerCallSignalingHandlers,
+  emitActiveCallToSocket,
+  removeUserFromActiveCalls
 };

@@ -27,6 +27,32 @@
     justify-content: space-between;
 }
 
+.call_overlay_incoming {
+    inset: auto;
+    right: 16px;
+    bottom: 16px;
+    z-index: 1450;
+    background: transparent;
+    backdrop-filter: none;
+    display: block;
+    padding: 0;
+    pointer-events: none;
+}
+
+.call_overlay_incoming .call_card {
+    width: min(360px, calc(100vw - 32px));
+    pointer-events: auto;
+}
+
+.call_persistent_media {
+    position: fixed;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
 .call_header h3 {
     margin: 0;
     font-size: 16px;
@@ -71,6 +97,11 @@
     min-height: 220px;
     background: #020617;
     padding: 10px;
+}
+
+.call_media.incoming_compact {
+    min-height: 0;
+    padding: 10px 12px;
 }
 
 .call_remote_grid {
@@ -216,6 +247,19 @@
     height: 28px;
     border-radius: 999px;
     background: #dc2626;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.call_minimized_accept {
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #16a34a;
     color: #fff;
     display: inline-flex;
     align-items: center;
