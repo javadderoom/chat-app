@@ -13,6 +13,9 @@ interface UseSocketEventsProps {
     setTypingUsers: Dispatch<SetStateAction<Array<{ userId: string; displayName: string }>>>;
     addMessage: (text: string, sender: string, isMe?: boolean, isSystem?: boolean, replyToId?: string, displayName?: string) => string;
     onInactiveChatMessage?: (chatId: string) => void;
+    onIncomingNotification?: (payload: { chatId: string; sender: string; text?: string; messageType?: string }) => void;
+    onMentionPing?: (payload: { chatId: string; messageId?: string; fromDisplayName: string; text?: string; mentionedUsername?: string }) => void;
+    onReplyPing?: (payload: { chatId: string; messageId?: string; fromDisplayName: string; text?: string }) => void;
 }
 
 export const useSocketEvents = ({
@@ -25,7 +28,10 @@ export const useSocketEvents = ({
     setStatus,
     setTypingUsers,
     addMessage,
-    onInactiveChatMessage
+    onInactiveChatMessage,
+    onIncomingNotification,
+    onMentionPing,
+    onReplyPing
 }: UseSocketEventsProps) => {
     useEffect(() => {
         if (!socket) return;
@@ -80,6 +86,12 @@ export const useSocketEvents = ({
             if (isDifferentChat) {
                 if (!isFromMe && data.chatId) {
                     onInactiveChatMessage?.(data.chatId);
+                    onIncomingNotification?.({
+                        chatId: data.chatId,
+                        sender: data.displayName || data.user || data.username || 'Unknown',
+                        text: data.text,
+                        messageType: data.messageType
+                    });
                 }
                 return;
             }
@@ -253,6 +265,40 @@ export const useSocketEvents = ({
             setTypingUsers(prev => prev.filter(u => u.userId !== data.userId));
         };
 
+        const handleMentionPing = (data: {
+            chatId: string;
+            messageId?: string;
+            fromDisplayName?: string;
+            fromUsername?: string;
+            text?: string;
+            mentionedUsername?: string;
+        }) => {
+            if (!data?.chatId) return;
+            onMentionPing?.({
+                chatId: data.chatId,
+                messageId: data.messageId,
+                fromDisplayName: data.fromDisplayName || data.fromUsername || 'Someone',
+                text: data.text,
+                mentionedUsername: data.mentionedUsername
+            });
+        };
+
+        const handleReplyPing = (data: {
+            chatId: string;
+            messageId?: string;
+            fromDisplayName?: string;
+            fromUsername?: string;
+            text?: string;
+        }) => {
+            if (!data?.chatId) return;
+            onReplyPing?.({
+                chatId: data.chatId,
+                messageId: data.messageId,
+                fromDisplayName: data.fromDisplayName || data.fromUsername || 'Someone',
+                text: data.text
+            });
+        };
+
         socket.on('connect', handleConnect);
         socket.on('connect_error', handleConnectError);
         socket.on('disconnect', handleDisconnect);
@@ -266,6 +312,8 @@ export const useSocketEvents = ({
         socket.on('chatPinnedUpdated', handleChatPinnedUpdated);
         socket.on('typingStarted', handleTypingStarted);
         socket.on('typingStopped', handleTypingStopped);
+        socket.on('mention:ping', handleMentionPing);
+        socket.on('reply:ping', handleReplyPing);
 
         return () => {
             socket.off('connect', handleConnect);
@@ -281,6 +329,8 @@ export const useSocketEvents = ({
             socket.off('chatPinnedUpdated', handleChatPinnedUpdated);
             socket.off('typingStarted', handleTypingStarted);
             socket.off('typingStopped', handleTypingStopped);
+            socket.off('mention:ping', handleMentionPing);
+            socket.off('reply:ping', handleReplyPing);
         };
-    }, [socket, settingsRef, activeChatIdRef, setMessages, setChats, setStatus, setTypingUsers, addMessage]);
+    }, [socket, settingsRef, activeChatIdRef, setMessages, setChats, setStatus, setTypingUsers, addMessage, onInactiveChatMessage, onIncomingNotification, onMentionPing, onReplyPing]);
 };

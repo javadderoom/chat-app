@@ -4,6 +4,69 @@ const { eq, and } = require('drizzle-orm');
 const { registerCallSignalingHandlers, emitActiveCallToSocket, removeUserFromActiveCalls } = require('./callSignaling');
 
 function createSocketHandlers(io, onlineUsers) {
+  function extractMentionUsernames(text = '') {
+    if (!text || typeof text !== 'string') return [];
+    const usernames = new Set();
+    const mentionRegex = /(^|[^A-Za-z0-9_])@([A-Za-z0-9_]{1,50})(?=\b)/g;
+    let match;
+
+    while ((match = mentionRegex.exec(text)) !== null) {
+      const username = (match[2] || '').trim().toLowerCase();
+      if (username) usernames.add(username);
+    }
+
+    return Array.from(usernames);
+  }
+
+  async function resolveMentionTargets({ chatId, text, senderUserId }) {
+    if (!chatId || !text || !senderUserId) return [];
+
+    const mentionUsernames = extractMentionUsernames(text);
+    if (!mentionUsernames.length) return [];
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        u.id,
+        u.username,
+        COALESCE(u.display_name, u.username) AS "displayName"
+      FROM users u
+      INNER JOIN chat_members cm ON cm.user_id = u.id
+      WHERE cm.chat_id = $1
+        AND LOWER(u.username) = ANY($2::text[])
+        AND u.id <> $3
+      `,
+      [chatId, mentionUsernames, senderUserId]
+    );
+
+    return rows || [];
+  }
+
+  async function resolveReplyTarget({ chatId, replyToId, senderUserId }) {
+    if (!chatId || !replyToId || !senderUserId) return null;
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        m.user_id AS id,
+        u.username,
+        COALESCE(u.display_name, u.username) AS "displayName"
+      FROM messages m
+      INNER JOIN users u ON u.id = m.user_id
+      WHERE m.id = $1
+        AND m.chat_id = $2
+        AND m.is_deleted = false
+      LIMIT 1
+      `,
+      [replyToId, chatId]
+    );
+
+    if (!rows || rows.length === 0) return null;
+    const target = rows[0];
+    if (!target?.id || target.id === senderUserId) return null;
+    return target;
+  }
+
   async function getReceiptAggregates(messageIds = []) {
     if (!messageIds.length) return new Map();
 
@@ -320,6 +383,8 @@ function createSocketHandlers(io, onlineUsers) {
           seenCount: 0,
           seenBy: []
         };
+        let mentionTargets = [];
+        let replyTarget = null;
 
         if (insertValues.chatId) {
           const roomSockets = io.sockets.adapter.rooms.get(insertValues.chatId) || new Set();
@@ -339,6 +404,30 @@ function createSocketHandlers(io, onlineUsers) {
             });
             const aggregateMap = await getReceiptAggregates([savedMessage.id]);
             receiptAggregate = aggregateMap.get(savedMessage.id) || receiptAggregate;
+          }
+
+          if (finalContent) {
+            try {
+              mentionTargets = await resolveMentionTargets({
+                chatId: insertValues.chatId,
+                text: finalContent,
+                senderUserId: userId
+              });
+            } catch (mentionError) {
+              console.error('Error resolving mention targets:', mentionError);
+            }
+          }
+
+          if (insertValues.replyToId) {
+            try {
+              replyTarget = await resolveReplyTarget({
+                chatId: insertValues.chatId,
+                replyToId: insertValues.replyToId,
+                senderUserId: userId
+              });
+            } catch (replyError) {
+              console.error('Error resolving reply target:', replyError);
+            }
           }
         }
 
@@ -362,6 +451,38 @@ function createSocketHandlers(io, onlineUsers) {
             seenCount: receiptAggregate.seenCount,
             seenBy: receiptAggregate.seenBy
           });
+
+          if (mentionTargets.length > 0) {
+            for (const target of mentionTargets) {
+              const targetSocketId = onlineUsers.get(target.id);
+              if (!targetSocketId) continue;
+
+              io.to(targetSocketId).emit('mention:ping', {
+                chatId: insertValues.chatId,
+                messageId: savedMessage.id,
+                mentionedUsername: target.username,
+                fromUserId: savedMessage.userId,
+                fromUsername: savedMessage.username,
+                fromDisplayName: user?.displayName || savedMessage.username,
+                text: finalContent || ''
+              });
+            }
+          }
+
+          if (replyTarget?.id) {
+            const targetSocketId = onlineUsers.get(replyTarget.id);
+            if (targetSocketId) {
+              io.to(targetSocketId).emit('reply:ping', {
+                chatId: insertValues.chatId,
+                messageId: savedMessage.id,
+                replyToId: insertValues.replyToId,
+                fromUserId: savedMessage.userId,
+                fromUsername: savedMessage.username,
+                fromDisplayName: user?.displayName || savedMessage.username,
+                text: finalContent || ''
+              });
+            }
+          }
         } else {
           io.emit('message', {
             ...data,

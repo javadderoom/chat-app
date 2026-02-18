@@ -128,7 +128,7 @@ Tokens are generated with:
 jwt.sign(
   { userId, username, displayName },
   process.env.JWT_SECRET || 'your-secret-key',
-  { expiresIn: '7d' }
+  { expiresIn: '30d' }
 )
 ```
 
@@ -182,7 +182,7 @@ jwt.sign(
 
 | Event | Data | Description |
 |-------|------|-------------|
-| `joinChat` | `{ chatId }` | Join a chat room (auto-adds to public chats) |
+| `joinChat` | `{ chatId, markSeen? }` | Join/subscribe to a chat room (`markSeen: false` for passive subscription) |
 | `message` | `{ text, messageType, mediaUrl, ... }` | Send message |
 | `editMessage` | `{ id, text }` | Edit message |
 | `deleteMessage` | `{ id }` | Delete message |
@@ -191,6 +191,13 @@ jwt.sign(
 | `updateChat` | `{ id, name, description, imageUrl }` | Update chat |
 | `pinMessage` | `{ chatId, messageId }` | Pin a message in a chat |
 | `unpinMessage` | `{ chatId }` | Remove current pinned message from a chat |
+| `call:start` | `{ chatId, isVideo }` | Start a room call |
+| `call:accept` | `{ chatId, callerId, isVideo }` | Accept/join call |
+| `call:decline` | `{ chatId, callerId }` | Decline call |
+| `call:offer` | `{ chatId, targetUserId, offer }` | Send WebRTC SDP offer |
+| `call:answer` | `{ chatId, targetUserId, answer }` | Send WebRTC SDP answer |
+| `call:ice` | `{ chatId, targetUserId, candidate }` | Send ICE candidate |
+| `call:end` | `{ chatId, targetUserId?, reason? }` | Leave/end call |
 
 ### Outgoing Events (Server → Client)
 
@@ -204,6 +211,14 @@ jwt.sign(
 | `chatUpdated` | Chat object | Chat updated |
 | `chatPinnedUpdated` | `{ chatId, pinnedMessageId, pinnedByUserId, pinnedAt, pinnedMessage }` | Pinned state changed |
 | `chatDeleted` | `{ chatId }` | Chat deleted |
+| `call:incoming` | `{ chatId, callerId, callerDisplayName, isVideo, isOngoing }` | Incoming or ongoing call notification |
+| `call:accepted` | `{ chatId, calleeId, calleeDisplayName, isVideo }` | User accepted/joined call |
+| `call:participant-joined` | `{ chatId, joinedById, joinedByDisplayName, isVideo }` | New participant joined active call |
+| `call:offer` | `{ chatId, fromUserId, fromDisplayName, offer }` | Incoming WebRTC offer |
+| `call:answer` | `{ chatId, fromUserId, answer }` | Incoming WebRTC answer |
+| `call:ice` | `{ chatId, fromUserId, candidate }` | Incoming ICE candidate |
+| `call:declined` | `{ chatId, declinedById, declinedByDisplayName }` | Call declined |
+| `call:ended` | `{ chatId, endedById, reason }` | Participant left or call ended |
 
 ## Message Handling Flow
 
@@ -274,7 +289,7 @@ const onlineUsers = new Map();
 
 ### Room Management
 - Users join specific chat rooms via `socket.join(chatId)`
-- Leave all other rooms when joining new one
+- Clients can stay subscribed to multiple chat rooms
 - Messages broadcast to specific room or globally
 
 ### Message Validation
@@ -306,3 +321,9 @@ const onlineUsers = new Map();
 - Pinning/unpinning is validated against chat membership
 - Pin updates are broadcast via `chatPinnedUpdated`
 - Chat list API includes a `pinnedMessage` summary for UI banner rendering
+
+### Active Room Calls
+- Server tracks active calls per chat (`chatId`) with current participants
+- Late joiners are notified of ongoing calls when they subscribe to a chat room
+- `call:end` and socket disconnect remove participants from active call state
+- Active call state is cleared when the last participant leaves

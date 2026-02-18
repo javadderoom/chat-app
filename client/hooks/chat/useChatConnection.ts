@@ -13,9 +13,19 @@ interface User {
     avatarUrl?: string;
 }
 
+export interface InAppNotification {
+    id: string;
+    type: 'message' | 'call' | 'ping' | 'reply';
+    chatId?: string;
+    title: string;
+    body: string;
+    createdAt: number;
+}
+
 export const useChatConnection = (settings: UserSettings, token: string | null, user: User | null) => {
     const PAGE_SIZE = 50;
     const READ_STATE_STORAGE_KEY = 'blackout_read_state_v1';
+    const MUTE_STATE_STORAGE_PREFIX = 'blackout_muted_chats_v1';
     const [messages, setMessages] = useState<Message[]>([]);
     const [chats, setChats] = useState<Chat[]>([]);
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -25,6 +35,8 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
     const joinedChatIdsRef = useRef<Set<string>>(new Set());
     const [users, setUsers] = useState<Record<string, UserInfo>>({});
     const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; displayName: string }>>([]);
+    const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+    const [mutedChats, setMutedChats] = useState<Record<string, boolean>>({});
     const [hasMoreMessages, setHasMoreMessages] = useState(true);
     const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
     const [lastReadByChat, setLastReadByChat] = useState<Record<string, number>>(() => {
@@ -74,6 +86,46 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         }
     }, [lastReadByChat]);
 
+    const chatsRef = useRef(chats);
+    useEffect(() => {
+        chatsRef.current = chats;
+    }, [chats]);
+
+    const seenIncomingCallKeyRef = useRef<string | null>(null);
+    const mutedChatsRef = useRef(mutedChats);
+
+    useEffect(() => {
+        mutedChatsRef.current = mutedChats;
+    }, [mutedChats]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const usernameKey = (settings.username || '').trim().toLowerCase();
+        const storageKey = `${MUTE_STATE_STORAGE_PREFIX}:${usernameKey}`;
+        try {
+            const saved = localStorage.getItem(storageKey);
+            if (!saved) {
+                setMutedChats({});
+                return;
+            }
+            const parsed = JSON.parse(saved);
+            if (!parsed || typeof parsed !== 'object') {
+                setMutedChats({});
+                return;
+            }
+            setMutedChats(parsed);
+        } catch {
+            setMutedChats({});
+        }
+    }, [settings.username]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const usernameKey = (settings.username || '').trim().toLowerCase();
+        const storageKey = `${MUTE_STATE_STORAGE_PREFIX}:${usernameKey}`;
+        localStorage.setItem(storageKey, JSON.stringify(mutedChats));
+    }, [mutedChats, settings.username]);
+
     const markChatAsRead = useCallback((chatId: string, readAt?: number) => {
         if (!chatId) return;
         const nextReadAt = typeof readAt === 'number' ? readAt : Date.now();
@@ -95,6 +147,38 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
             (message) => !message.isSystem && !message.isMe && message.timestamp > readAt
         );
         return firstUnread?.id || null;
+    }, []);
+
+    const dismissNotification = useCallback((notificationId: string) => {
+        setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
+    }, []);
+
+    const pushNotification = useCallback((notification: Omit<InAppNotification, 'id' | 'createdAt'>) => {
+        if (notification.chatId && mutedChatsRef.current[notification.chatId]) {
+            return;
+        }
+        const next: InAppNotification = {
+            ...notification,
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            createdAt: Date.now()
+        };
+        setNotifications(prev => [next, ...prev].slice(0, 5));
+    }, []);
+
+    const isChatMuted = useCallback((chatId?: string | null) => {
+        if (!chatId) return false;
+        return !!mutedChatsRef.current[chatId];
+    }, []);
+
+    const setChatMuted = useCallback((chatId: string, muted: boolean) => {
+        if (!chatId) return;
+        setMutedChats(prev => {
+            if (muted) return { ...prev, [chatId]: true };
+            if (!prev[chatId]) return prev;
+            const next = { ...prev };
+            delete next[chatId];
+            return next;
+        });
     }, []);
 
     const subscribeToChats = useCallback((chatIds: string[]) => {
@@ -165,6 +249,52 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
                 ...prev,
                 [chatId]: (prev[chatId] || 0) + 1
             }));
+        },
+        onIncomingNotification: ({ chatId, sender, text, messageType }) => {
+            const selfUsername = (settingsRef.current.username || '').trim();
+            if (selfUsername && text) {
+                const escaped = selfUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const selfMentionRegex = new RegExp(`(^|[^A-Za-z0-9_])@${escaped}(?=\\b)`, 'i');
+                if (selfMentionRegex.test(text)) {
+                    return;
+                }
+            }
+
+            const chatName = chatsRef.current.find(chat => chat.id === chatId)?.name || 'Chat';
+            const preview = (() => {
+                if (messageType === 'sticker') return '[STICKER]';
+                if (messageType === 'image') return '[IMAGE]';
+                if (messageType === 'video') return '[VIDEO]';
+                if (messageType === 'audio') return '[AUDIO]';
+                if (messageType === 'file') return '[FILE]';
+                return (text || '').trim() || '[MESSAGE]';
+            })();
+
+            pushNotification({
+                type: 'message',
+                chatId,
+                title: `${sender} in ${chatName}`,
+                body: preview
+            });
+        },
+        onMentionPing: ({ chatId, fromDisplayName, text, mentionedUsername }) => {
+            const chatName = chatsRef.current.find(chat => chat.id === chatId)?.name || 'Chat';
+            const mentionLabel = mentionedUsername || settingsRef.current.username || 'you';
+            pushNotification({
+                type: 'ping',
+                chatId,
+                title: `${fromDisplayName} pinged @${mentionLabel}`,
+                body: text?.trim() || `Mentioned you in ${chatName}`
+            });
+        },
+        onReplyPing: ({ chatId, fromDisplayName, text }) => {
+            const chatName = chatsRef.current.find(chat => chat.id === chatId)?.name || 'Chat';
+            pushNotification({
+                type: 'reply',
+                chatId,
+                title: `${fromDisplayName} replied to you`,
+                body: text?.trim() || `New reply in ${chatName}`
+            });
         }
     });
 
@@ -422,6 +552,26 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         user
     });
 
+    useEffect(() => {
+        const incoming = call.incomingCall;
+        if (!incoming) {
+            seenIncomingCallKeyRef.current = null;
+            return;
+        }
+
+        const callKey = `${incoming.chatId}:${incoming.callerId}:${incoming.mode}:${incoming.isOngoing ? '1' : '0'}`;
+        if (seenIncomingCallKeyRef.current === callKey) return;
+        seenIncomingCallKeyRef.current = callKey;
+
+        const chatName = chatsRef.current.find(chat => chat.id === incoming.chatId)?.name || 'Chat';
+        pushNotification({
+            type: 'call',
+            chatId: incoming.chatId,
+            title: `${incoming.callerDisplayName} in ${chatName}`,
+            body: incoming.isOngoing ? 'Ongoing call available to join' : `Incoming ${incoming.mode} call`
+        });
+    }, [call.incomingCall, pushNotification]);
+
     return {
         messages,
         chats,
@@ -432,6 +582,11 @@ export const useChatConnection = (settings: UserSettings, token: string | null, 
         users,
         typingUsers,
         unreadCounts,
+        mutedChats,
+        isChatMuted,
+        setChatMuted,
+        notifications,
+        dismissNotification,
         firstUnreadMessageId: activeChatId ? (firstUnreadMessageIdByChat[activeChatId] || null) : null,
         hasMoreMessages,
         isLoadingOlderMessages,

@@ -91,7 +91,8 @@ User Action → useChatActions → Socket emit → Server
 1. User logs in → Token stored in context
 2. `useChatConnection` initializes Socket.IO with token in auth
 3. On connection: fetches chat list via REST API
-4. On chat selection: joins room via `socket.emit('joinChat')` and fetches history
+4. Client subscribes to known chats via `socket.emit('joinChat', { chatId, markSeen: false })`
+5. On chat selection: joins active room with `markSeen: true` and fetches history
 
 ## Key Components
 
@@ -109,6 +110,7 @@ Root component managing:
 Sidebar displaying:
 - Available chat rooms
 - Active chat indicator
+- Unread message badges for inactive chats
 - Online status
 - Create chat functionality
 
@@ -116,12 +118,14 @@ Sidebar displaying:
 
 Main chat interface with:
 - Message list (virtualized for performance)
+- "New messages" divider at first unread message
 - Message input with attachments
 - Reply/forward modals
 - Message editing
 - Reactions
 - Pinned message banner with jump-to-message and unpin action
 - Voice recording
+- Header controls for start/join calls
 
 ### useSocketEvents.ts
 
@@ -133,6 +137,8 @@ Handles incoming Socket.IO events:
 - `chatCreated` - New chat room
 - `chatUpdated` - Chat info changed
 - `chatPinnedUpdated` - Chat pinned message state changed
+- `messageReceiptUpdated` - Delivery/read counters
+- `typingStarted` / `typingStopped` - Typing state
 
 ### useChatActions.ts
 
@@ -149,6 +155,14 @@ Provides action methods:
 - `deleteChat()` - Delete chat (admin only)
 - `pinMessage()` - Pin a message in the active chat
 - `unpinMessage()` - Remove the pinned message in a chat
+
+### useWebRTCCall.ts
+
+Call signaling and peer flow:
+- Supports multi-participant room calls
+- Supports incoming, accept/decline, minimize, and end
+- Tracks joinable active calls per chat and exposes `joinActiveCall(chatId)`
+- Exposes `hasJoinableCallInActiveChat` for header "Join call" button
 
 ## Type Definitions
 
@@ -177,6 +191,9 @@ interface Message {
   reactions?: Record<string, string[]>;
   isForwarded?: boolean;
   forwardedFrom?: string;
+  deliveredCount?: number;
+  seenCount?: number;
+  seenBy?: string[];
 }
 ```
 
@@ -283,7 +300,8 @@ TailwindCSS 4 with custom configuration:
 ## LocalStorage Keys
 
 - `blackout_settings` - User preferences
-- Auth tokens stored in AuthContext (memory + cookie-like)
+- `blackout_token` / `blackout_user` - Auth session
+- `blackout_read_state_v1` - Per-chat read state for unread tracking
 
 ## Deployment
 
@@ -311,3 +329,13 @@ Configured for Liara cloud platform:
 - Edit chat name, description, avatar
 - Delete chat (admin only, Global cannot be deleted)
 - Pin/unpin important messages per chat
+
+### Unread Experience
+- Sidebar unread count badges
+- In-chat first unread marker ("New messages")
+- Read state updates when active chat is viewed
+
+### Calls
+- Incoming call overlay can be minimized
+- Active room calls can be joined later from chat header
+- Minimized calls keep audio path alive

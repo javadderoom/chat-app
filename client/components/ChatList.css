@@ -137,7 +137,7 @@
 }
 
 .chat_unread_badge {
-    margin-left: auto;
+    margin-left: 0;
     min-width: 20px;
     height: 20px;
     border-radius: 999px;
@@ -150,6 +150,39 @@
     align-items: center;
     justify-content: center;
     border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.chat_item_meta {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.chat_mute_button {
+    border: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-dim);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: all 0.2s;
+}
+
+.chat_mute_button:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-bright);
+}
+
+.chat_mute_button.muted {
+    color: #f59e0b;
+    opacity: 1;
 }
 
 .sidebar_footer {

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useChatConnection } from './hooks/useChatConnection';
 import { ChatList } from './components/ChatList';
 import { ChatView } from './components/ChatView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ServerHelpModal } from './components/ServerHelpModal';
+import { InAppNotifications } from './components/InAppNotifications';
 import LoginPage from './components/LoginPage';
 import { useAuth } from './contexts/AuthContext';
 import { UserSettings } from './types';
@@ -28,6 +29,7 @@ const App: React.FC = () => {
   const [showServerHelp, setShowServerHelp] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const notificationTimersRef = useRef<Record<string, number>>({});
 
   // Update settings username when user changes
   React.useEffect(() => {
@@ -39,7 +41,7 @@ const App: React.FC = () => {
   const {
     messages, chats, activeChatId, setActiveChatId, status, fetchChats,
     sendMessage, sendMediaMessage, editMessage, deleteMessage, createChat, toggleReaction, forwardMessage, sendSticker, updateChat, deleteChat, pinMessage, unpinMessage, startTyping, stopTyping, users, typingUsers,
-    unreadCounts, firstUnreadMessageId,
+    unreadCounts, mutedChats, isChatMuted, setChatMuted, notifications, dismissNotification, firstUnreadMessageId,
     hasMoreMessages, isLoadingOlderMessages, loadOlderMessages,
     callStatus, callMode, incomingCall, localStream, remoteParticipants, callPeerName, callError,
     hasJoinableCallInActiveChat, joinActiveCall, startVoiceCall, startVideoCall, acceptCall, declineCall, endCall
@@ -55,6 +57,29 @@ const App: React.FC = () => {
   };
 
   const activeChat = chats.find(c => c.id === activeChatId);
+
+  useEffect(() => {
+    notifications.forEach((notification) => {
+      if (notificationTimersRef.current[notification.id]) return;
+      notificationTimersRef.current[notification.id] = window.setTimeout(() => {
+        dismissNotification(notification.id);
+        delete notificationTimersRef.current[notification.id];
+      }, 6000);
+    });
+
+    Object.keys(notificationTimersRef.current).forEach((notificationId) => {
+      if (notifications.some(notification => notification.id === notificationId)) return;
+      window.clearTimeout(notificationTimersRef.current[notificationId]);
+      delete notificationTimersRef.current[notificationId];
+    });
+  }, [notifications, dismissNotification]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(notificationTimersRef.current).forEach(timerId => window.clearTimeout(timerId));
+      notificationTimersRef.current = {};
+    };
+  }, []);
 
   // Show loading spinner while checking authentication
 if (authLoading) {
@@ -86,6 +111,8 @@ return (
         user={user}
         onLogout={logout}
         unreadCounts={unreadCounts}
+        isChatMuted={isChatMuted}
+        setChatMuted={setChatMuted}
       />
 
       <ChatView
@@ -115,6 +142,11 @@ return (
         user={user}
         token={token}
         users={users}
+        isActiveChatMuted={activeChatId ? !!mutedChats[activeChatId] : false}
+        onToggleActiveChatMute={() => {
+          if (!activeChatId) return;
+          setChatMuted(activeChatId, !mutedChats[activeChatId]);
+        }}
         typingUsers={typingUsers}
         firstUnreadMessageId={firstUnreadMessageId}
         hasMoreMessages={hasMoreMessages}
@@ -146,6 +178,14 @@ return (
       {showServerHelp && (
         <ServerHelpModal onClose={() => setShowServerHelp(false)} serverUrl={settings.serverUrl} />
       )}
+
+      <InAppNotifications
+        notifications={notifications}
+        onDismiss={dismissNotification}
+        onOpenChat={(chatId) => {
+          setActiveChatId(chatId);
+        }}
+      />
     </div>
   );
 };

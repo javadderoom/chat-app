@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Terminal, Plus, MessageSquare, X, Settings, LogOut, User } from 'lucide-react';
+import { Terminal, Plus, MessageSquare, X, Settings, LogOut, User, Bell, BellOff } from 'lucide-react';
 import './ChatList.css';
 
 interface Chat {
@@ -27,6 +27,8 @@ interface ChatListProps {
     user?: User;
     onLogout?: () => void;
     unreadCounts?: Record<string, number>;
+    isChatMuted: (chatId: string) => boolean;
+    setChatMuted: (chatId: string, muted: boolean) => void;
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
@@ -39,7 +41,9 @@ export const ChatList: React.FC<ChatListProps> = ({
     onOpenSettings,
     user,
     onLogout,
-    unreadCounts = {}
+    unreadCounts = {},
+    isChatMuted,
+    setChatMuted
 }) => {
     const [showNewChatModal, setShowNewChatModal] = useState(false);
     const [newChatName, setNewChatName] = useState('');
@@ -74,31 +78,47 @@ export const ChatList: React.FC<ChatListProps> = ({
                 </div>
 
                 <div className="chat_list">
-                    {chats.map(chat => (
-                        <div
-                            key={chat.id}
-                            className={`chat_item ${activeChatId === chat.id ? 'active' : ''}`}
-                            onClick={() => {
-                                setActiveChatId(chat.id);
-                                if (window.innerWidth < 768) setShowSidebar(false);
-                            }}
-                        >
-                            <div className="chat_icon">
-                                {chat.imageUrl ? (
-                                    <img src={chat.imageUrl} alt="" className="chat_list_avatar" />
-                                ) : (
-                                    <MessageSquare size={16} />
-                                )}
+                    {chats.map(chat => {
+                        const muted = isChatMuted(chat.id);
+                        return (
+                            <div
+                                key={chat.id}
+                                className={`chat_item ${activeChatId === chat.id ? 'active' : ''}`}
+                                onClick={() => {
+                                    setActiveChatId(chat.id);
+                                    if (window.innerWidth < 768) setShowSidebar(false);
+                                }}
+                            >
+                                <div className="chat_icon">
+                                    {chat.imageUrl ? (
+                                        <img src={chat.imageUrl} alt="" className="chat_list_avatar" />
+                                    ) : (
+                                        <MessageSquare size={16} />
+                                    )}
+                                </div>
+                                <div className="chat_info">
+                                    <span className="chat_name">{chat.name}</span>
+                                    {chat.description && <span className="chat_desc">{chat.description}</span>}
+                                </div>
+                                <div className="chat_item_meta">
+                                    {unreadCounts[chat.id] > 0 && activeChatId !== chat.id && (
+                                        <div className="chat_unread_badge">{unreadCounts[chat.id]}</div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className={`chat_mute_button ${muted ? 'muted' : ''}`}
+                                        title={muted ? 'Unmute chat notifications' : 'Mute chat notifications'}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setChatMuted(chat.id, !muted);
+                                        }}
+                                    >
+                                        {muted ? <BellOff size={14} /> : <Bell size={14} />}
+                                    </button>
+                                </div>
                             </div>
-                            <div className="chat_info">
-                                <span className="chat_name">{chat.name}</span>
-                                {chat.description && <span className="chat_desc">{chat.description}</span>}
-                            </div>
-                            {unreadCounts[chat.id] > 0 && activeChatId !== chat.id && (
-                                <div className="chat_unread_badge">{unreadCounts[chat.id]}</div>
-                            )}
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 <div className="sidebar_footer">

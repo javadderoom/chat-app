@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, Settings, MessageSquare, Pin, Search, Menu, ArrowDown, Phone } from 'lucide-react';
+import { Send, WifiOff, Smile, Mic, Trash2, X, Square, Check, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, MessageSquare, Pin, Search, Menu, ArrowDown, Phone, Bell, BellOff } from 'lucide-react';
 import { FileUploadButton, UploadResult } from './FileUploadButton';
 import { StickerPicker } from './StickerPicker';
 import { MessageBubble } from './MessageBubble';
@@ -59,6 +59,8 @@ interface ChatViewProps {
     user?: User;
     token: string | null;
     users: Record<string, UserInfo>;
+    isActiveChatMuted: boolean;
+    onToggleActiveChatMute: () => void;
     typingUsers: Array<{ userId: string; displayName: string }>;
     firstUnreadMessageId: string | null;
     hasMoreMessages: boolean;
@@ -107,6 +109,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     user,
     token,
     users,
+    isActiveChatMuted,
+    onToggleActiveChatMute,
     typingUsers,
     firstUnreadMessageId,
     hasMoreMessages,
@@ -600,17 +604,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     >
                         <Menu size={20} />
                     </button>
-                    {activeChat?.imageUrl ? (
-                        <img src={activeChat.imageUrl} alt="" className="chat_avatar" />
-                    ) : (
-                        <div className="chat_avatar_placeholder">
-                            <MessageSquare size={20} />
+                    <button
+                        type="button"
+                        className="chat_header_trigger"
+                        onClick={() => setIsChatSettingsOpen(true)}
+                        disabled={!activeChat?.id || settings.isDemoMode}
+                        title="Chat Settings"
+                    >
+                        {activeChat?.imageUrl ? (
+                            <img src={activeChat.imageUrl} alt="" className="chat_avatar" />
+                        ) : (
+                            <div className="chat_avatar_placeholder">
+                                <MessageSquare size={20} />
+                            </div>
+                        )}
+                        <div className="chat_title">
+                            <h2>{activeChat?.name || 'Loading...'}</h2>
                         </div>
-                    )}
-                    <div className="chat_title">
-                        <h2>{activeChat?.name || 'Loading...'}</h2>
-                        {activeChat?.description && <p>{activeChat.description}</p>}
-                    </div>
+                    </button>
                 </div>
                 <div className="header_right">
                     <button
@@ -650,12 +661,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     >
                         <Search size={20} />
                     </button>
-                    <button 
-                        onClick={() => setIsChatSettingsOpen(true)} 
+                    <button
+                        type="button"
                         className="chat_settings_btn"
-                        title="Chat Settings"
+                        title={isActiveChatMuted ? 'Unmute chat notifications' : 'Mute chat notifications'}
+                        onClick={onToggleActiveChatMute}
+                        disabled={!activeChat?.id}
                     >
-                        <Settings size={20} />
+                        {isActiveChatMuted ? <BellOff size={20} /> : <Bell size={20} />}
                     </button>
                 </div>
                 {isSearchExpanded && (
